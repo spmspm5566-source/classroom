@@ -347,7 +347,183 @@ var _rollCls='';var _rollDate='';var _rollPeriod='';var _rollSubject='';
   document.getElementById('recTo').value=ymd;
   // 填入班級選單
   buildClsSels();
+  // 自動偵測當下課表
+  setTimeout(autoDetectSlot, 200);
 })();
+
+// ── 自動偵測當下/即將的課 ──
+function autoDetectSlot(){
+  var tt = GS.timetable;
+  if(!tt||!tt.length) return;
+
+  function toMin(str){ if(!str)return 0; var p=str.split(':');return parseInt(p[0])*60+parseInt(p[1]); }
+
+  var TT_PERIODS_LOCAL = [
+    {id:'morning',label:'早自習',  start:'07:00',end:'07:30'},
+    {id:'p1',     label:'第1節',   start:'08:00',end:'08:45'},
+    {id:'p2',     label:'第2節',   start:'08:55',end:'09:40'},
+    {id:'p3',     label:'第3節',   start:'09:50',end:'10:35'},
+    {id:'p4',     label:'第4節',   start:'10:45',end:'11:30'},
+    {id:'lunch',  label:'午休',    start:'11:30',end:'13:00'},
+    {id:'p5',     label:'第5節',   start:'13:00',end:'13:45'},
+    {id:'p6',     label:'第6節',   start:'13:55',end:'14:40'},
+    {id:'p7',     label:'第7節',   start:'14:50',end:'15:35'},
+    {id:'p8',     label:'第8節',   start:'15:45',end:'16:30'},
+    {id:'p9',     label:'第9節',   start:'16:40',end:'17:25'},
+    {id:'dinner', label:'晚餐',    start:'17:25',end:'18:30'},
+    {id:'eve1',   label:'晚自習1', start:'18:30',end:'19:20'},
+    {id:'eve2',   label:'晚自習2', start:'19:30',end:'20:20'},
+    {id:'sleep',  label:'晚睡',    start:'20:30',end:'21:00'},
+    {id:'sat1',   label:'週六第1節',start:'08:00',end:'08:45'},
+    {id:'sat2',   label:'週六第2節',start:'08:55',end:'09:40'},
+    {id:'sat3',   label:'週六第3節',start:'09:50',end:'10:35'},
+    {id:'sat4',   label:'週六第4節',start:'10:45',end:'11:30'}
+  ];
+  function getPeriod(id){ return TT_PERIODS_LOCAL.find(function(p){return p.id===id;}); }
+
+  var now = new Date();
+  var day = now.getDay();
+  var hm  = now.getHours()*60 + now.getMinutes();
+
+  var todaySlots = tt.filter(function(s){return s.day===day;});
+  if(!todaySlots.length) return;
+
+  var best=null, bestDiff=Infinity, isNow=false;
+
+  todaySlots.forEach(function(s){
+    var p=getPeriod(s.period); if(!p)return;
+    var start=toMin(p.start), end=toMin(p.end);
+    if(hm>=start && hm<end){
+      // 正在進行中，優先選最晚開始的（連堂取最後一節）
+      if(!isNow||start>toMin(getPeriod(best.period).start)){
+        best=s; isNow=true; bestDiff=0;
+      }
+    } else if(!isNow && hm<start){
+      var diff=start-hm;
+      if(diff<bestDiff){ bestDiff=diff; best=s; }
+    }
+  });
+
+  if(!best) return;
+
+  // 填入班級
+  var clsSel=document.getElementById('rollCls');
+  clsSel.value=best.cls;
+  if(!clsSel.value){
+    // 若選單尚無此班（社團），補入
+    var o=document.createElement('option');o.value=best.cls;o.textContent=best.cls;
+    clsSel.appendChild(o); clsSel.value=best.cls;
+  }
+  // 填入節次
+  var date=document.getElementById('rollDate').value;
+  buildPeriodSel(best.cls, date);
+  var periodSel=document.getElementById('rollPeriod');
+  periodSel.value=best.period;
+  // 填入科目
+  if(best.subject) document.getElementById('rollSubject').value=best.subject;
+
+  // 顯示提示橫幅
+  var p=getPeriod(best.period);
+  var msg='';
+  if(isNow){
+    msg='📌 現在：'+best.cls+' '+p.label+'（'+p.start+'–'+p.end+'）';
+    if(best.subject) msg+=' | '+best.subject;
+    if(best.teacher) msg+=' | '+best.teacher;
+  } else {
+    var mins=bestDiff;
+    var timeStr=mins>=60?(Math.floor(mins/60)+'小時'+(mins%60?mins%60+'分':'')):(mins+'分鐘後');
+    msg='⏰ '+timeStr+'後：'+best.cls+' '+p.label+'（'+p.start+'–'+p.end+'）';
+    if(best.subject) msg+=' | '+best.subject;
+    if(best.teacher) msg+=' | '+best.teacher;
+  }
+  showSlotBanner(msg, isNow);
+
+  // 連堂偵測：找前一節同班是否有點名紀錄
+  if(isNow){
+    var pidx=TT_PERIODS_LOCAL.findIndex(function(p){return p.id===best.period;});
+    if(pidx>0){
+      var prevId=TT_PERIODS_LOCAL[pidx-1].id;
+      var prevSlot=tt.find(function(s){return s.cls===best.cls&&s.day===best.day&&s.period===prevId;});
+      if(prevSlot){
+        var today2=document.getElementById('rollDate').value;
+        var prevAtt=(GS.attendance||[]).find(function(a){
+          return a.cls===best.cls&&a.date===today2&&a.period===prevId;
+        });
+        if(prevAtt&&prevAtt.records&&prevAtt.records.length){
+          // 顯示連堂提示
+          showCarryBanner(prevSlot, prevAtt.records.length, function(){
+            carryForwardAttendance(best, prevAtt, date, getPeriod);
+          });
+        }
+      }
+    }
+  }
+}
+
+var _bannerEl=null;
+function showSlotBanner(msg, isNow){
+  var existing=document.getElementById('slotBanner');
+  if(existing)existing.remove();
+  var div=document.createElement('div');
+  div.id='slotBanner';
+  div.style.cssText='background:'+(isNow?'#e8f8ed':'#e8f0fe')+';border:1px solid '+(isNow?'#1a7a3c':'#1a56c9')+';'
+    +'border-radius:8px;padding:10px 16px;margin-bottom:14px;font-size:13px;color:'+(isNow?'#1a7a3c':'#1a56c9')+';'
+    +'display:flex;align-items:center;gap:10px;font-weight:500;';
+  div.innerHTML=msg;
+  var wrap=document.querySelector('.wrap');
+  var firstCard=wrap&&wrap.querySelector('.card');
+  if(firstCard)firstCard.parentNode.insertBefore(div, firstCard);
+}
+
+function showCarryBanner(prevSlot, count, onConfirm){
+  var existing=document.getElementById('carryBanner');
+  if(existing)existing.remove();
+  var div=document.createElement('div');
+  div.id='carryBanner';
+  div.style.cssText='background:#fff8e6;border:1px solid #f5dfa0;border-radius:8px;padding:10px 16px;'
+    +'margin-bottom:14px;font-size:13px;color:#a06600;display:flex;align-items:center;justify-content:space-between;gap:10px;';
+  div.innerHTML='<span>🔗 偵測到連堂（上一節已有 '+count+' 人點名紀錄），是否帶入上一節的出席狀態？</span>'
+    +'<div style="display:flex;gap:8px">'
+    +'<button onclick="document.getElementById(\'carryBanner\').remove();('+onConfirm.toString()+')()" '
+    +'style="padding:5px 14px;font-size:12px;background:#a06600;color:#fff;border:none;border-radius:6px;cursor:pointer">✓ 帶入</button>'
+    +'<button onclick="document.getElementById(\'carryBanner\').remove()" '
+    +'style="padding:5px 14px;font-size:12px;background:transparent;border:1px solid #f5dfa0;border-radius:6px;cursor:pointer;color:#a06600">略過</button>'
+    +'</div>';
+  var slotBanner=document.getElementById('slotBanner');
+  if(slotBanner)slotBanner.parentNode.insertBefore(div, slotBanner.nextSibling);
+  else{ var wrap=document.querySelector('.wrap'); var fc=wrap&&wrap.querySelector('.card'); if(fc)fc.parentNode.insertBefore(div,fc); }
+}
+
+function carryForwardAttendance(currentSlot, prevAtt, date, getPeriodFn){
+  // 複製前一節點名紀錄到當前節次（狀態相同），並直接開始點名
+  var existing=(GS.attendance||[]).find(function(a){
+    return a.cls===currentSlot.cls&&a.date===date&&a.period===currentSlot.period;
+  });
+  if(existing){
+    if(!confirm('當前節次已有點名紀錄，確定要覆蓋嗎？'))return;
+  }
+  var newRecs=prevAtt.records.map(function(r){
+    return Object.assign({},r,{time:'',note:'',notified:false});
+  });
+  var newAtt={
+    id:'att_'+Date.now(),
+    cls:currentSlot.cls, date:date,
+    period:currentSlot.period, subject:currentSlot.subject||'',
+    records:newRecs
+  };
+  GS.attendance=GS.attendance||[];
+  var idx=(GS.attendance||[]).findIndex(function(a){
+    return a.cls===currentSlot.cls&&a.date===date&&a.period===currentSlot.period;
+  });
+  if(idx>=0)GS.attendance[idx]=newAtt; else GS.attendance.push(newAtt);
+  try{localStorage.setItem('eduSys',JSON.stringify(GS));}catch(e){}
+  // 觸發點名載入
+  document.getElementById('rollCls').value=currentSlot.cls;
+  document.getElementById('rollPeriod').value=currentSlot.period;
+  startRoll();
+  document.getElementById('carryBanner').remove();
+}
+
 
 function buildClsSels(){
   var myCls=getMyCls();

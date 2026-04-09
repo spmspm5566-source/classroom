@@ -159,6 +159,7 @@ input[type=checkbox]{width:auto;accent-color:var(--black)}
   <button class="tab active" onclick="goTab('home',this)">🏠 系統首頁</button>
   <button class="tab" onclick="goTab('students',this)">👥 學生名單</button>
   <button class="tab" onclick="goTab('clubs',this)">⭐ 菁英社團</button>
+  <button class="tab" onclick="goTab('timetable',this)">🗓 課表配課</button>
   <button class="tab" onclick="goTab('year',this)">📅 學年度管理</button>
   <button class="tab" onclick="goTab('line',this)">📱 LINE 設定</button>
   <button class="tab" onclick="goTab('cfg',this)">⚙️ 系統設定</button>
@@ -469,7 +470,60 @@ input[type=checkbox]{width:auto;accent-color:var(--black)}
   <div id="lineLog" class="log" style="display:none"></div>
 </div>
 
-<!-- ══════════ 系統設定 ══════════ -->
+<!-- ══════════ 課表配課 ══════════ -->
+<div id="tab-timetable" class="pg">
+  <div class="card">
+    <div class="card-title">🗓 班級課表配課設定</div>
+    <div class="hint">
+      為每個班級設定每週固定課表（含任課老師）。<br>
+      系統根據課表在<strong>點名頁自動跳出當下應點名的課</strong>，連堂時自動帶入上一堂的點名結果。
+    </div>
+
+    <!-- 新增課表按鈕列 -->
+    <div class="row" style="gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:flex-end">
+      <div class="col" style="max-width:160px">
+        <span class="lbl">選擇班級</span>
+        <select id="ttClsSel" onchange="ttOnClsChange()">
+          <option value="">請選擇班級</option>
+        </select>
+      </div>
+      <div class="col" style="max-width:120px">
+        <span class="lbl">星期</span>
+        <select id="ttDaySel">
+          <option value="1">週一</option><option value="2">週二</option>
+          <option value="3">週三</option><option value="4">週四</option>
+          <option value="5">週五</option><option value="6">週六</option>
+          <option value="0">週日</option>
+        </select>
+      </div>
+      <div class="col" style="max-width:130px">
+        <span class="lbl">節次</span>
+        <select id="ttPeriodSel"></select>
+      </div>
+      <div class="col">
+        <span class="lbl">科目</span>
+        <input id="ttSubject" placeholder="理化、數學…"/>
+      </div>
+      <div class="col">
+        <span class="lbl">任課老師</span>
+        <input id="ttTeacher" placeholder="孫老師"/>
+      </div>
+      <div class="col" style="max-width:110px;display:flex;align-items:flex-end">
+        <button class="btn btn-p" onclick="ttAddSlot()" style="width:100%">＋ 新增節次</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 課表總覽 -->
+  <div class="card">
+    <div class="card-title">📋 課表總覽</div>
+    <div style="margin-bottom:10px">
+      <span class="lbl">篩選班級</span>
+      <div class="class-pills" id="ttFilterPills" style="margin-top:6px"></div>
+    </div>
+    <div id="ttTableWrap" style="overflow-x:auto"></div>
+  </div>
+</div>
 <div id="tab-cfg" class="pg">
   <!-- 基本資料 -->
   <div class="card">
@@ -594,7 +648,8 @@ var GS = {
   gemini: { key:'',model:'' },
   yearArchive: [], // [{year,archivedAt,studentCount}]
   homeworks: [], submissions:{}, answerFiles:{}, formData:{},
-  attendance: [], scores:{}, reports:{}
+  attendance: [], scores:{}, reports:{},
+  timetable: []  // [{id,cls,day(0-6),period,subject,teacher}]
 };
 (function(){
   try{
@@ -641,6 +696,7 @@ function goTab(id,btn){
   if(id==='home')    refreshHome();
   if(id==='students'){buildClassPills();renderStuTable();}
   if(id==='clubs')   renderClubs();
+  if(id==='timetable') loadTimetable();
   if(id==='year')    loadYearCfg();
   if(id==='line')    loadLineCfg();
   if(id==='cfg')     loadCfg();
@@ -1527,6 +1583,221 @@ async function doPromotionAuto(newYear){
   initYearSel();updateHeaderYearLabel();refreshHome();
   buildClassPills();renderStuTable();
   alert('✅ 升班完成！現在是 '+newYear+' 學年第一學期。請記得至「學生名單」匯入新一年級學生。');
+}
+
+// ══════════════════════════════════════════════════════
+//  課表配課系統
+// ══════════════════════════════════════════════════════
+// GS.timetable = [{id, cls, day(0-6), period, subject, teacher}]
+// day: 0=週日,1=週一…6=週六
+
+var TT_PERIODS = [
+  {id:'morning', label:'早自習',  start:'07:00', end:'07:30'},
+  {id:'p1',      label:'第1節',   start:'08:00', end:'08:45'},
+  {id:'p2',      label:'第2節',   start:'08:55', end:'09:40'},
+  {id:'p3',      label:'第3節',   start:'09:50', end:'10:35'},
+  {id:'p4',      label:'第4節',   start:'10:45', end:'11:30'},
+  {id:'lunch',   label:'午休',    start:'11:30', end:'13:00'},
+  {id:'p5',      label:'第5節',   start:'13:00', end:'13:45'},
+  {id:'p6',      label:'第6節',   start:'13:55', end:'14:40'},
+  {id:'p7',      label:'第7節',   start:'14:50', end:'15:35'},
+  {id:'p8',      label:'第8節',   start:'15:45', end:'16:30'},
+  {id:'p9',      label:'第9節',   start:'16:40', end:'17:25'},
+  {id:'dinner',  label:'晚餐',    start:'17:25', end:'18:30'},
+  {id:'eve1',    label:'晚自習1', start:'18:30', end:'19:20'},
+  {id:'eve2',    label:'晚自習2', start:'19:30', end:'20:20'},
+  {id:'sleep',   label:'晚睡',    start:'20:30', end:'21:00'},
+  {id:'sat1',    label:'週六第1節',start:'08:00',end:'08:45'},
+  {id:'sat2',    label:'週六第2節',start:'08:55',end:'09:40'},
+  {id:'sat3',    label:'週六第3節',start:'09:50',end:'10:35'},
+  {id:'sat4',    label:'週六第4節',start:'10:45',end:'11:30'}
+];
+
+var TT_DAY_LABELS = ['週日','週一','週二','週三','週四','週五','週六'];
+
+function ttGetPeriod(id){ return TT_PERIODS.find(function(p){return p.id===id;}); }
+function ttGetPeriodLabel(id){ var p=ttGetPeriod(id); return p?p.label:id; }
+
+function loadTimetable(){
+  if(!GS.timetable) GS.timetable=[];
+  // 填班級選單
+  var allCls = getAllClassNames();
+  var sel = document.getElementById('ttClsSel');
+  sel.innerHTML = '<option value="">請選擇班級</option>';
+  allCls.forEach(function(c){
+    var o=document.createElement('option'); o.value=c; o.textContent=c; sel.appendChild(o);
+  });
+  // 填節次選單
+  ttFillPeriodSel(document.getElementById('ttPeriodSel'));
+  // 設定預設老師名稱
+  if(!document.getElementById('ttTeacher').value && GS.cfg && GS.cfg.teacherName){
+    document.getElementById('ttTeacher').value = GS.cfg.teacherName;
+  }
+  // 渲染篩選pills和課表
+  ttRenderFilterPills();
+  ttRenderTable();
+}
+
+function getAllClassNames(){
+  var clubNames=(GS.clubs||[]).map(function(c){return c.name;});
+  var regular=Array.from(new Set((GS.students||[])
+    .filter(function(s){return s.status!=='graduated';})
+    .map(function(s){return s.class_name;}).filter(Boolean))).sort();
+  var clubs=(GS.clubs||[]).map(function(c){return c.name;});
+  return Array.from(new Set(regular.concat(clubs)));
+}
+
+function ttFillPeriodSel(sel){
+  var val = sel.value;
+  sel.innerHTML='';
+  TT_PERIODS.forEach(function(p){
+    var o=document.createElement('option'); o.value=p.id; o.textContent=p.label+'（'+p.start+'–'+p.end+'）';
+    sel.appendChild(o);
+  });
+  if(val) sel.value=val;
+}
+
+function ttOnClsChange(){
+  // 依班級自動填預設老師
+  var cls = document.getElementById('ttClsSel').value;
+  if(!cls) return;
+  // 找該班已有的課表，取最常出現的老師
+  var slots=(GS.timetable||[]).filter(function(s){return s.cls===cls;});
+  if(slots.length){
+    var counts={};
+    slots.forEach(function(s){counts[s.teacher]=(counts[s.teacher]||0)+1;});
+    var top=Object.keys(counts).sort(function(a,b){return counts[b]-counts[a];})[0];
+    if(top) document.getElementById('ttTeacher').value=top;
+  }
+}
+
+function ttAddSlot(){
+  if(!GS.timetable) GS.timetable=[];
+  var cls = document.getElementById('ttClsSel').value;
+  var day = parseInt(document.getElementById('ttDaySel').value);
+  var period = document.getElementById('ttPeriodSel').value;
+  var subject = document.getElementById('ttSubject').value.trim() || (GS.cfg&&GS.cfg.subject) || '';
+  var teacher = document.getElementById('ttTeacher').value.trim();
+  if(!cls){alert('請選擇班級');return;}
+  if(!period){alert('請選擇節次');return;}
+  // 檢查重複
+  var dup = GS.timetable.findIndex(function(s){return s.cls===cls&&s.day===day&&s.period===period;});
+  var slot = {id:'tt_'+Date.now(), cls:cls, day:day, period:period, subject:subject, teacher:teacher};
+  if(dup>=0){ GS.timetable[dup]=slot; } else { GS.timetable.push(slot); }
+  save();
+  ttRenderTable();
+  ttRenderFilterPills();
+}
+
+var _ttFilterCls = '';
+function ttRenderFilterPills(){
+  var allCls = Array.from(new Set((GS.timetable||[]).map(function(s){return s.cls;}))).sort();
+  var html = '<div class="class-pill '+(!_ttFilterCls?'active':'')+'" onclick="ttSetFilter(\'\')">全部</div>';
+  allCls.forEach(function(c){
+    var isClub = !!(GS.clubs||[]).find(function(x){return x.name===c;});
+    html += '<div class="class-pill '+(isClub?'club ':'')+(_ttFilterCls===c?'active':'')+'" onclick="ttSetFilter(\''+c+'\')">'+(isClub?'⭐ ':'')+c+'</div>';
+  });
+  document.getElementById('ttFilterPills').innerHTML = html;
+}
+function ttSetFilter(cls){ _ttFilterCls=cls; ttRenderFilterPills(); ttRenderTable(); }
+
+function ttRenderTable(){
+  if(!GS.timetable||!GS.timetable.length){
+    document.getElementById('ttTableWrap').innerHTML='<div style="color:var(--gray400);padding:16px;font-size:13px">尚無課表，請新增節次</div>';
+    return;
+  }
+  var slots = _ttFilterCls
+    ? GS.timetable.filter(function(s){return s.cls===_ttFilterCls;})
+    : GS.timetable;
+  if(!slots.length){
+    document.getElementById('ttTableWrap').innerHTML='<div style="color:var(--gray400);padding:16px;font-size:13px">此班尚無課表</div>';
+    return;
+  }
+  // Group by class, then show weekly table
+  var clsList = Array.from(new Set(slots.map(function(s){return s.cls;}))).sort();
+  var html = '';
+  clsList.forEach(function(cls){
+    var isClub = !!(GS.clubs||[]).find(function(x){return x.name===cls;});
+    var clsSlots = slots.filter(function(s){return s.cls===cls;});
+    // Sort by day then period index
+    clsSlots.sort(function(a,b){
+      var da=a.day===0?7:a.day, db=b.day===0?7:b.day;
+      if(da!==db)return da-db;
+      var pa=TT_PERIODS.findIndex(function(p){return p.id===a.period;}),
+          pb=TT_PERIODS.findIndex(function(p){return p.id===b.period;});
+      return pa-pb;
+    });
+    html += '<div style="margin-bottom:20px">';
+    html += '<div style="font-weight:600;font-size:14px;margin-bottom:8px;display:flex;align-items:center;gap:8px">';
+    html += (isClub?'<span class="badge bp">⭐ '+cls+'</span>':'<span class="badge bi">'+cls+'</span>');
+    html += '<span style="font-size:12px;color:var(--gray600)">'+clsSlots.length+' 堂課</span>';
+    html += '</div>';
+    html += '<table><thead><tr><th>星期</th><th>節次</th><th>時間</th><th>科目</th><th>任課老師</th><th></th></tr></thead><tbody>';
+    clsSlots.forEach(function(s){
+      var p = ttGetPeriod(s.period);
+      var timeStr = p ? p.start+'–'+p.end : '';
+      html += '<tr>'
+        +'<td>'+TT_DAY_LABELS[s.day]+'</td>'
+        +'<td>'+ttGetPeriodLabel(s.period)+'</td>'
+        +'<td style="font-size:12px;color:var(--gray600)">'+timeStr+'</td>'
+        +'<td>'+(s.subject||'—')+'</td>'
+        +'<td>'+(s.teacher||'—')+'</td>'
+        +'<td><button class="btn btn-sm btn-danger" onclick="ttDeleteSlot(\''+s.id+'\')">刪除</button></td>'
+      +'</tr>';
+    });
+    html += '</tbody></table></div>';
+  });
+  document.getElementById('ttTableWrap').innerHTML = html;
+}
+
+function ttDeleteSlot(id){
+  GS.timetable = (GS.timetable||[]).filter(function(s){return s.id!==id;});
+  save(); ttRenderTable(); ttRenderFilterPills();
+}
+
+// ── 自動偵測當下課表（供 attendance.html 使用）──
+// 回傳 {cls, period, subject, teacher, isNext, minutesUntil}
+function ttGetCurrentSlot(){
+  if(!GS.timetable||!GS.timetable.length) return null;
+  var now = new Date();
+  var day = now.getDay(); // 0=Sun,1=Mon…6=Sat
+  var hm = now.getHours()*60+now.getMinutes();
+
+  function toMin(str){ // "08:00" → 480
+    if(!str)return 0;
+    var p=str.split(':'); return parseInt(p[0])*60+parseInt(p[1]);
+  }
+
+  var todaySlots = GS.timetable.filter(function(s){return s.day===day;});
+  var best=null, bestDiff=Infinity;
+
+  todaySlots.forEach(function(s){
+    var p=ttGetPeriod(s.period); if(!p)return;
+    var start=toMin(p.start), end=toMin(p.end);
+    if(hm>=start && hm<end){
+      // 正在上課中
+      if(!best||start>toMin(ttGetPeriod(best.period).start)){
+        best=Object.assign({},s,{isNext:false,minutesUntil:0,periodStart:start,periodEnd:end});
+      }
+    } else if(hm<start){
+      var diff=start-hm;
+      if(diff<bestDiff){bestDiff=diff;
+        best=Object.assign({},s,{isNext:true,minutesUntil:diff,periodStart:start,periodEnd:end});
+      }
+    }
+  });
+  return best;
+}
+
+// ── 偵測連堂（同班同科目，前一節剛結束）──
+function ttGetPrevSlot(cls, period, day){
+  if(!GS.timetable) return null;
+  var pidx = TT_PERIODS.findIndex(function(p){return p.id===period;});
+  if(pidx<=0) return null;
+  var prevPeriod = TT_PERIODS[pidx-1].id;
+  return (GS.timetable||[]).find(function(s){
+    return s.cls===cls && s.day===day && s.period===prevPeriod;
+  })||null;
 }
 
 // ══════════════════════════════════════════════════════
