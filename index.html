@@ -652,7 +652,8 @@ function switchYear(y){
 // ══════════════════════════════════════════════════════
 //  Tab 導航
 // ══════════════════════════════════════════════════════
-function goTab(id,btn){\n  document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('active');});
+function goTab(id,btn){
+  document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('active');});
   document.querySelectorAll('.pg').forEach(function(p){p.classList.remove('active');});
   if(btn)btn.classList.add('active');
   document.getElementById('tab-'+id).classList.add('active');
