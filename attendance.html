@@ -531,18 +531,20 @@ function buildClsSels(){
   var myCls=getMyCls();
   // 一般班級：從學生資料產生（未畢業）
   var regularCls=Array.from(new Set((GS.students||[]).filter(function(s){return s.status!=='graduated';}).map(function(s){return s.class_name;}).filter(Boolean))).sort();
-  // 社團：所有已建立的社團名稱（自動加入，不需老師另行設定）
+  // 社團：所有已建立的社團名稱
   var clubCls=(GS.clubs||[]).map(function(c){return c.name;}).filter(Boolean);
-  // 合併：若有老師設定則用設定；否則一般班級＋所有社團
-  var allCls=myCls.length
-    ? Array.from(new Set(myCls.concat(clubCls)))
-    : Array.from(new Set(regularCls.concat(clubCls)));
+  // 課表：課表中設定的班級（最重要！確保配課班級一定出現）
+  var ttCls=Array.from(new Set((GS.timetable||[]).map(function(s){return s.cls;}).filter(Boolean))).sort();
 
-  // 若完全沒有班級資料，從課表補充
-  if(!allCls.length){
-    var ttCls=Array.from(new Set((GS.timetable||[]).map(function(s){return s.cls;}).filter(Boolean))).sort();
-    allCls=ttCls;
+  var allCls;
+  if(myCls.length){
+    // 有老師設定：用設定 + 社團 + 課表班級（三者聯集）
+    allCls=Array.from(new Set(myCls.concat(clubCls).concat(ttCls)));
+  } else {
+    // 沒有設定：一般班級 + 社團 + 課表班級
+    allCls=Array.from(new Set(regularCls.concat(clubCls).concat(ttCls)));
   }
+  allCls.sort();
 
   // 顯示/隱藏無資料提示
   var hint=document.getElementById('noDataHint');

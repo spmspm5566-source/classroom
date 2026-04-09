@@ -162,8 +162,7 @@ input[type=checkbox]{width:auto;accent-color:var(--black)}
 
 <div class="wrap">
 <div class="tabs">
-  <button class="tab active" onclick="goTab('home',this)">🏠 系統首頁</button>
-  <button class="tab" onclick="goTab('students',this)">👥 學生名單</button>
+  <button class="tab active" onclick="goTab('students',this)">👥 學生名單</button>
   <button class="tab" onclick="goTab('clubs',this)">⭐ 菁英社團</button>
   <button class="tab" onclick="goTab('timetable',this)">🗓 課表配課</button>
   <button class="tab" onclick="goTab('year',this)">📅 學年度管理</button>
@@ -171,62 +170,21 @@ input[type=checkbox]{width:auto;accent-color:var(--black)}
   <button class="tab" onclick="goTab('cfg',this)">⚙️ 系統設定</button>
 </div>
 
-<!-- ══════════ 首頁 ══════════ -->
-<div id="tab-home" class="pg active">
-  <div class="metrics" id="homeMetrics">
+<!-- ══════════ 學生名單 ══════════ -->
+<div id="tab-students" class="pg active">
+  <!-- 統計概覽 -->
+  <div class="metrics" id="homeMetrics" style="margin-bottom:14px">
     <div class="metric"><div class="metric-num" id="m-stu">0</div><div class="metric-lbl">學生總數</div></div>
     <div class="metric"><div class="metric-num" id="m-cls">0</div><div class="metric-lbl">班級數</div></div>
     <div class="metric"><div class="metric-num" id="m-mine">0</div><div class="metric-lbl">我的班級</div></div>
     <div class="metric"><div class="metric-num" id="m-p1">0</div><div class="metric-lbl">家長1 LINE</div></div>
     <div class="metric"><div class="metric-num" id="m-p2">0</div><div class="metric-lbl">家長2 LINE</div></div>
   </div>
-
-  <div class="module-grid">
-    <a class="module-card" href="homework.html">
-      <div class="module-icon">📋</div>
-      <div class="module-name">作業管理</div>
-      <div class="module-desc">多班多作業、Google表單繳交統計、答案公布、錯題分析</div>
-    </a>
-    <a class="module-card" href="attendance.html">
-      <div class="module-icon">✅</div>
-      <div class="module-name">課堂點名</div>
-      <div class="module-desc">出缺席登記、曠課通知兩位家長、統計分析</div>
-    </a>
-    <a class="module-card" href="academic.html">
-      <div class="module-icon">📊</div>
-      <div class="module-name">學涯診斷</div>
-      <div class="module-desc">全校成績匯入、年排趨勢、Gemini AI評語、PDF報表</div>
-    </a>
+  <!-- 快速操作 -->
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+    <button class="btn btn-blue" onclick="syncToSheets()">☁️ 同步到 Google Sheets</button>
   </div>
-
-  <!-- 我的班級快覽 -->
-  <div class="card">
-    <div class="card-title">📌 我的班級（<span id="mineYear">114</span>學年度）</div>
-    <div id="myClassList" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px"></div>
-    <div class="row" style="gap:8px">
-      <button class="btn btn-p" onclick="goTab('students',document.querySelectorAll('.tab')[1])">👥 管理學生名單</button>
-      <button class="btn" onclick="goTab('year',document.querySelectorAll('.tab')[3])">📅 學年度管理</button>
-      <button class="btn btn-blue" onclick="syncToSheets()">☁️ 同步到 Google Sheets</button>
-    </div>
-    <div id="homeLog" class="log" style="display:none"></div>
-  </div>
-
-  <div class="card">
-    <div class="card-title">📢 使用說明</div>
-    <div class="hint">
-      <strong>首次設定步驟：</strong><br>
-      1. 「系統設定」填入學校資料、科任班級、導師班級<br>
-      2. 「學生名單」匯入 CSV 或手動新增（含家長1/家長2 LINE ID）<br>
-      3. 「LINE 設定」填入 Cloudflare Worker 網址與 Channel Access Token<br>
-      4. 「學年度管理」確認目前學年，每年7月執行升班<br>
-      5. 各子系統開始使用<br><br>
-      <strong>分享給其他老師：</strong>每位老師自己的 GitHub Pages 網址是獨立的，資料互不干擾。
-    </div>
-  </div>
-</div>
-
-<!-- ══════════ 學生名單 ══════════ -->
-<div id="tab-students" class="pg">
+  <div id="homeLog" class="log" style="display:none"></div>
   <!-- 班級篩選 -->
   <div class="card" style="padding:14px 18px">
     <div class="row" style="align-items:center;margin-bottom:10px">
@@ -694,13 +652,11 @@ function switchYear(y){
 // ══════════════════════════════════════════════════════
 //  Tab 導航
 // ══════════════════════════════════════════════════════
-function goTab(id,btn){
-  document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('active');});
+function goTab(id,btn){\n  document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('active');});
   document.querySelectorAll('.pg').forEach(function(p){p.classList.remove('active');});
   if(btn)btn.classList.add('active');
   document.getElementById('tab-'+id).classList.add('active');
-  if(id==='home')    refreshHome();
-  if(id==='students'){buildClassPills();renderStuTable();}
+  if(id==='students'){refreshHome();buildClassPills();renderStuTable();}
   if(id==='clubs')   renderClubs();
   if(id==='timetable') loadTimetable();
   if(id==='year')    loadYearCfg();
@@ -1864,6 +1820,7 @@ function ttGetPrevSlot(cls, period, day){
 // ══════════════════════════════════════════════════════
 //  初始化
 // ══════════════════════════════════════════════════════
+refreshHome();
 buildClassPills();
 renderStuTable();
 renderCfgClasses();
