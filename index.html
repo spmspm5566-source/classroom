@@ -1592,26 +1592,23 @@ async function doPromotionAuto(newYear){
 // day: 0=週日,1=週一…6=週六
 
 var TT_PERIODS = [
-  {id:'morning', label:'早自習',  start:'07:00', end:'07:30'},
-  {id:'p1',      label:'第1節',   start:'08:00', end:'08:45'},
-  {id:'p2',      label:'第2節',   start:'08:55', end:'09:40'},
-  {id:'p3',      label:'第3節',   start:'09:50', end:'10:35'},
-  {id:'p4',      label:'第4節',   start:'10:45', end:'11:30'},
-  {id:'lunch',   label:'午休',    start:'11:30', end:'13:00'},
-  {id:'p5',      label:'第5節',   start:'13:00', end:'13:45'},
-  {id:'p6',      label:'第6節',   start:'13:55', end:'14:40'},
-  {id:'p7',      label:'第7節',   start:'14:50', end:'15:35'},
-  {id:'p8',      label:'第8節',   start:'15:45', end:'16:30'},
-  {id:'p9',      label:'第9節',   start:'16:40', end:'17:25'},
-  {id:'dinner',  label:'晚餐',    start:'17:25', end:'18:30'},
-  {id:'eve1',    label:'晚自習1', start:'18:30', end:'19:20'},
-  {id:'eve2',    label:'晚自習2', start:'19:30', end:'20:20'},
-  {id:'sleep',   label:'晚睡',    start:'20:30', end:'21:00'},
-  {id:'sat1',    label:'週六第1節',start:'08:00',end:'08:45'},
-  {id:'sat2',    label:'週六第2節',start:'08:55',end:'09:40'},
-  {id:'sat3',    label:'週六第3節',start:'09:50',end:'10:35'},
-  {id:'sat4',    label:'週六第4節',start:'10:45',end:'11:30'}
+  {id:'morning', label:'早自習',  start:'07:40', end:'08:15'},
+  {id:'p1',      label:'第1節',   start:'08:25', end:'09:10'},
+  {id:'p2',      label:'第2節',   start:'09:20', end:'10:05'},
+  {id:'p3',      label:'第3節',   start:'10:15', end:'11:00'},
+  {id:'p4',      label:'第4節',   start:'11:10', end:'11:55'},
+  {id:'lunch',   label:'午休',    start:'12:35', end:'13:10'},
+  {id:'p5',      label:'第5節',   start:'13:20', end:'14:05'},
+  {id:'p6',      label:'第6節',   start:'14:15', end:'15:00'},
+  {id:'p7',      label:'第7節',   start:'15:10', end:'15:55'},
+  {id:'p8',      label:'第8節',   start:'16:05', end:'16:50'},
+  {id:'p9',      label:'第9節',   start:'16:50', end:'17:30'},
+  {id:'dinner',  label:'晚餐',    start:'17:30', end:'18:30'},
+  {id:'sleep',   label:'晚睡',    start:'18:00', end:'18:30'},
+  {id:'eve1',    label:'晚自習1', start:'18:35', end:'19:30'},
+  {id:'eve2',    label:'晚自習2', start:'19:40', end:'20:30'}
 ];
+// 週六作息與平日相同，使用同一組 TT_PERIODS（不需獨立週六節次）
 
 var TT_DAY_LABELS = ['週日','週一','週二','週三','週四','週五','週六'];
 
