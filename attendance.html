@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>課堂點名 — 班級教務系統</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --black:#1a1a1a;--white:#fff;--gray50:#f8f8f8;--gray100:#f0f0f0;
+  --gray200:#e8e8e8;--gray400:#aaa;--gray600:#666;--gray800:#333;
+  --blue:#1a56c9;--blue-bg:#e8f0fe;--green:#1a7a3c;--green-bg:#e8f8ed;
+  --red:#c0392b;--red-bg:#fef0f0;--orange:#a06600;--orange-bg:#fff8e6;
+  --yellow:#856404;--yellow-bg:#fff3cd;
+  --line:#06C755;--radius:10px;--radius-sm:6px;--shadow:0 2px 8px rgba(0,0,0,.08);
+}
+body{font-family:'Noto Sans TC',system-ui,sans-serif;font-size:14px;background:var(--gray100);color:var(--black);min-height:100vh}
+.sys-header{background:var(--black);color:var(--white);padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.sys-logo{font-size:17px;font-weight:600;display:flex;align-items:center;gap:8px}
+.sys-logo span{font-size:11px;opacity:.5;font-weight:400}
+.nav-links{display:flex;gap:4px}
+.nav-a{color:rgba(255,255,255,.7);text-decoration:none;padding:6px 12px;border-radius:var(--radius-sm);font-size:13px;transition:all .15s;white-space:nowrap}
+.nav-a:hover,.nav-a.active{background:rgba(255,255,255,.12);color:#fff}
+.wrap{max-width:1100px;margin:0 auto;padding:20px 16px}
+.card{background:var(--white);border:1px solid var(--gray200);border-radius:var(--radius);padding:18px 20px;margin-bottom:14px;box-shadow:var(--shadow)}
+.card-title{font-size:15px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:6px}
+.lbl{font-size:12px;color:var(--gray600);margin-bottom:4px;display:block;font-weight:500}
+input[type=text],input[type=datetime-local],select,textarea{width:100%;padding:8px 11px;font-size:13px;border:1px solid var(--gray200);border-radius:var(--radius-sm);background:var(--white);color:var(--black);font-family:inherit;outline:none}
+input:focus,select:focus{border-color:var(--black)}
+.row{display:flex;gap:8px;flex-wrap:wrap}.col{flex:1;min-width:110px}
+.btn{padding:8px 16px;font-size:13px;border:1px solid var(--gray200);border-radius:var(--radius-sm);cursor:pointer;background:var(--white);color:var(--black);font-family:inherit;transition:all .15s;white-space:nowrap}
+.btn:hover{background:var(--gray50)}
+.btn-p{background:var(--black);color:var(--white);border-color:var(--black)}.btn-p:hover{background:var(--gray800)}
+.btn-ln{background:var(--line);color:var(--white);border-color:var(--line)}.btn-ln:hover{opacity:.88}
+.btn-sm{padding:5px 11px;font-size:12px}
+.badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:12px;font-weight:500;cursor:pointer;user-select:none;transition:all .15s}
+.b-present{background:var(--green-bg);color:var(--green)}
+.b-absent{background:var(--red-bg);color:var(--red)}
+.b-late{background:var(--orange-bg);color:var(--orange)}
+.b-early{background:var(--yellow-bg);color:var(--yellow)}
+.b-skip{background:#f3e8ff;color:#6b21a8}
+.b-none{background:var(--gray100);color:var(--gray600)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;padding:9px 11px;font-weight:500;border-bottom:1px solid var(--gray200);color:var(--gray600);font-size:12px;background:var(--gray50);white-space:nowrap}
+td{padding:9px 11px;border-bottom:1px solid var(--gray100);vertical-align:middle}
+tr:hover td{background:var(--gray50)}
+tr:last-child td{border-bottom:none}
+.tabs{display:flex;gap:0;border-bottom:2px solid var(--gray200);margin-bottom:18px;overflow-x:auto}
+.tab{padding:10px 16px;font-size:13px;cursor:pointer;border:none;background:none;color:var(--gray600);border-bottom:2px solid transparent;margin-bottom:-2px;white-space:nowrap;font-family:inherit}
+.tab:hover{color:var(--black)}
+.tab.active{color:var(--black);border-bottom-color:var(--black);font-weight:600}
+.pg{display:none}.pg.active{display:block}
+.hint{font-size:12px;color:var(--gray600);line-height:1.75;padding:10px 12px;background:var(--gray50);border-radius:var(--radius-sm);margin-bottom:10px;border-left:3px solid var(--gray200)}
+.log{font-size:11px;color:var(--gray600);font-family:monospace;background:var(--gray50);border-radius:var(--radius-sm);padding:10px;margin-top:8px;max-height:130px;overflow-y:auto;line-height:1.8;border:1px solid var(--gray200)}
+.mg{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:14px}
+@media(max-width:700px){.mg{grid-template-columns:repeat(3,1fr)}}
+.mc{background:var(--gray50);border-radius:var(--radius-sm);padding:12px 14px;border:1px solid var(--gray200);text-align:center}
+.mn{font-size:22px;font-weight:700}.ml{font-size:11px;color:var(--gray600);margin-top:3px}
+.class-pills{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.class-pill{padding:5px 14px;border-radius:20px;font-size:12px;cursor:pointer;border:1px solid var(--gray200);background:var(--white);transition:all .15s}
+.class-pill:hover,.class-pill.active{background:var(--black);color:var(--white);border-color:var(--black)}
+/* Attendance grid */
+.att-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
+.att-card{background:var(--white);border:1px solid var(--gray200);border-radius:var(--radius);padding:12px;display:flex;flex-direction:column;gap:8px;transition:border .15s}
+.att-card:hover{border-color:var(--gray400)}
+.att-name{font-weight:600;font-size:14px}
+.att-sub{font-size:11px;color:var(--gray600)}
+.att-btns{display:flex;gap:5px;flex-wrap:wrap}
+.att-btn{padding:4px 10px;border-radius:20px;font-size:12px;cursor:pointer;border:1px solid transparent;font-family:inherit;transition:all .15s}
+.att-btn:hover{opacity:.85}
+.att-btn.present{background:var(--green);color:var(--white)}
+.att-btn.absent{background:var(--red);color:var(--white)}
+.att-btn.late{background:var(--orange);color:var(--white)}
+.att-btn.early{background:#856404;color:var(--white)}
+.att-btn.skip{background:#6b21a8;color:var(--white)}
+.att-btn.reset{background:var(--gray200);color:var(--gray800)}
+.att-status{padding:3px 10px;border-radius:20px;font-size:11px;font-weight:500;text-align:center}
+.note-input{font-size:12px;padding:4px 8px;border:1px solid var(--gray200);border-radius:var(--radius-sm);width:100%;font-family:inherit}
+.sp{display:inline-block;width:12px;height:12px;border:2px solid var(--gray200);border-top-color:var(--black);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:4px}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<header class="sys-header">
+  <div class="sys-logo">✅ 課堂點名 <span>班級教務管理系統</span></div>
+  <nav class="nav-links">
+    <a class="nav-a" href="index.html">🏠 首頁</a>
+    <a class="nav-a" href="homework.html">📋 作業</a>
+    <a class="nav-a active" href="attendance.html">✅ 點名</a>
+    <a class="nav-a" href="academic.html">📊 學涯</a>
+  </nav>
+</header>
+
+<div class="wrap">
+  <div class="tabs">
+    <button class="tab active" onclick="goTab('roll',this)">📋 即時點名</button>
+    <button class="tab" onclick="goTab('records',this)">📅 出缺席紀錄</button>
+    <button class="tab" onclick="goTab('stats',this)">📊 統計分析</button>
+    <button class="tab" onclick="goTab('notify',this)">📱 LINE 通知</button>
+  </div>
+
+  <!-- ══ 即時點名 ══ -->
+  <div id="tab-roll" class="pg active">
+
+    <!-- Session setup -->
+    <div class="card">
+      <div class="card-title">📋 開始點名</div>
+      <div class="row" style="margin-bottom:10px">
+        <div class="col" style="max-width:130px">
+          <span class="lbl">班級</span>
+          <select id="rollCls" onchange="onRollClsChange()">
+            <option value="">請選班級</option>
+          </select>
+        </div>
+        <div class="col" style="max-width:160px">
+          <span class="lbl">日期</span>
+          <input id="rollDate" type="datetime-local"/>
+        </div>
+        <div class="col" style="max-width:130px">
+          <span class="lbl">節次</span>
+          <select id="rollPeriod">
+            <option value="早自習">早自習</option>
+            <option value="第1節">第1節</option><option value="第2節">第2節</option>
+            <option value="第3節">第3節</option><option value="第4節">第4節</option>
+            <option value="午休">午休</option>
+            <option value="第5節">第5節</option><option value="第6節">第6節</option>
+            <option value="第7節">第7節</option><option value="第8節">第8節</option>
+            <option value="晚自習">晚自習</option>
+          </select>
+        </div>
+        <div class="col" style="max-width:120px">
+          <span class="lbl">科目</span>
+          <input id="rollSubject" placeholder="自然"/>
+        </div>
+        <div class="col" style="display:flex;align-items:flex-end">
+          <button class="btn btn-p" onclick="startRoll()" style="width:100%">開始點名</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Roll status bar -->
+    <div id="rollStatusBar" style="display:none">
+      <div class="mg" id="rollMetrics">
+        <div class="mc"><div class="mn" id="rm-present" style="color:var(--green)">0</div><div class="ml">出席</div></div>
+        <div class="mc"><div class="mn" id="rm-absent"  style="color:var(--red)">0</div><div class="ml">缺席</div></div>
+        <div class="mc"><div class="mn" id="rm-late"    style="color:var(--orange)">0</div><div class="ml">遲到</div></div>
+        <div class="mc"><div class="mn" id="rm-early"   style="color:#856404">0</div><div class="ml">早退</div></div>
+        <div class="mc"><div class="mn" id="rm-skip"    style="color:#6b21a8">0</div><div class="ml">曠課</div></div>
+      </div>
+
+      <!-- Quick actions -->
+      <div class="card" style="padding:12px 16px;margin-bottom:10px">
+        <div class="row" style="gap:8px;align-items:center">
+          <span style="font-size:13px;color:var(--gray600)">全體設為：</span>
+          <button class="btn btn-sm att-btn present" onclick="setAllStatus('present')">✓ 出席</button>
+          <button class="btn btn-sm att-btn absent"  onclick="setAllStatus('absent')">✗ 缺席</button>
+          <div style="flex:1"></div>
+          <button class="btn btn-sm btn-p" onclick="saveRoll()">💾 儲存點名</button>
+          <button class="btn btn-sm btn-ln" onclick="lineNotifyAbsent()">📱 通知曠/缺席</button>
+        </div>
+      </div>
+
+      <!-- Student cards -->
+      <div class="att-grid" id="attGrid"></div>
+    </div>
+  </div>
+
+  <!-- ══ 出缺席紀錄 ══ -->
+  <div id="tab-records" class="pg">
+    <div class="card">
+      <div class="row" style="align-items:center;gap:8px;margin-bottom:12px">
+        <div style="flex:1;font-weight:600;font-size:14px">出缺席紀錄</div>
+        <select id="recCls" style="width:auto" onchange="renderRecords()"><option value="">全部班級</option></select>
+        <select id="recStatus" style="width:auto" onchange="renderRecords()">
+          <option value="">全部狀態</option>
+          <option value="absent">缺席</option><option value="skip">曠課</option>
+          <option value="late">遲到</option><option value="early">早退</option>
+          <option value="present">出席</option>
+        </select>
+        <button class="btn btn-sm" onclick="exportAttCSV()">匯出 CSV</button>
+        <button class="btn btn-sm btn-danger" onclick="clearAllAtt()">清除全部</button>
+      </div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr>
+            <th>日期</th><th>節次</th><th>班級</th><th>座號</th><th>姓名</th>
+            <th>狀態</th><th>備註</th><th>LINE通知</th><th></th>
+          </tr></thead>
+          <tbody id="recBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ 統計分析 ══ -->
+  <div id="tab-stats" class="pg">
+    <div class="card">
+      <div class="row" style="align-items:center;margin-bottom:10px">
+        <div style="flex:1;font-weight:600;font-size:14px">缺席統計</div>
+        <select id="statCls" style="width:auto" onchange="renderAttStats()"><option value="">全部班級</option></select>
+      </div>
+      <div id="attStatsContent">
+        <div style="text-align:center;padding:30px;color:var(--gray400)">尚無出缺席資料</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ LINE 通知 ══ -->
+  <div id="tab-notify" class="pg">
+    <div class="card">
+      <div class="card-title">手動 LINE 通知</div>
+      <div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:10px">
+        <button class="btn btn-sm btn-ln" onclick="lineNotifyAbsent()">通知今日缺席/曠課家長</button>
+        <button class="btn btn-sm btn-ln" onclick="lineNotifyLate()">通知今日遲到家長</button>
+        <button class="btn btn-sm" onclick="sendAttSummaryToTeacher()">傳出缺席統計給老師</button>
+      </div>
+      <div class="log" id="notifyLog" style="display:none"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">自訂廣播訊息</div>
+      <span class="lbl">發送對象班級</span>
+      <select id="broadcastCls" style="margin-bottom:10px"><option value="">全部班級</option></select>
+      <span class="lbl">發送對象</span>
+      <select id="broadcastTarget" style="margin-bottom:10px">
+        <option value="student">學生</option>
+        <option value="parent">家長（全部）</option>
+        <option value="parent1">家長1</option>
+        <option value="parent2">家長2</option>
+        <option value="both">學生＋家長</option>
+      </select>
+      <span class="lbl">訊息內容</span>
+      <textarea id="broadcastMsg" placeholder="輸入要傳送的訊息…" style="margin-bottom:10px"></textarea>
+      <button class="btn btn-p" onclick="sendBroadcast()" style="width:100%">發送廣播</button>
+      <div class="log" id="broadcastLog" style="display:none"></div>
+    </div>
+  </div>
+
+</div><!-- /wrap -->
+
+<script>
+// ── State ──
+var GS={};
+try{var _d=localStorage.getItem('eduSys');if(_d)GS=JSON.parse(_d);}catch(e){}
+GS.attendance=GS.attendance||[];
+function save(){try{localStorage.setItem('eduSys',JSON.stringify(GS));}catch(e){}}
+
+var STATUS_LABELS={present:'出席',absent:'缺席',late:'遲到',early:'早退',skip:'曠課'};
+var STATUS_CLASS={present:'present',absent:'absent',late:'late',early:'early',skip:'skip'};
+var STATUS_BADGE={present:'b-present',absent:'b-absent',late:'b-late',early:'b-early',skip:'b-skip'};
+
+// ── Nav ──
+function goTab(id,btn){
+  document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('active');});
+  document.querySelectorAll('.pg').forEach(function(p){p.classList.remove('active');});
+  btn.classList.add('active');
+  document.getElementById('tab-'+id).classList.add('active');
+  if(id==='records'){fillClsSel('recCls');renderRecords();}
+  if(id==='stats'){fillClsSel('statCls');renderAttStats();}
+  if(id==='notify'){fillClsSel('broadcastCls');}
+}
+
+// ── Class selects ──
+function fillClsSel(id){
+  var el=document.getElementById(id);if(!el)return;
+  var cur=el.value;
+  var cls=Array.from(new Set((GS.students||[]).map(function(s){return s.class_name;}).filter(Boolean))).sort();
+  var first=el.options[0].value===''?'<option value="">'+el.options[0].textContent+'</option>':'';
+  el.innerHTML=first;
+  cls.forEach(function(c){var o=document.createElement('option');o.value=c;o.textContent=c+' 班';el.appendChild(o);});
+  if(cur)el.value=cur;
+}
+
+// ── Roll call setup ──
+var _rollSession={cls:'',date:'',period:'',subject:'',records:{}};
+// {studentId: {status:'present'|'absent'|'late'|'early'|'skip', note:''}}
+
+function initClsSel(){
+  var sel=document.getElementById('rollCls');
+  var cls=Array.from(new Set((GS.students||[]).map(function(s){return s.class_name;}).filter(Boolean))).sort();
+  sel.innerHTML='<option value="">請選班級</option>';
+  cls.forEach(function(c){var o=document.createElement('option');o.value=c;o.textContent=c+' 班';sel.appendChild(o);});
+  // Set today's date
+  var now=new Date();
+  var pad=function(n){return n<10?'0'+n:n;};
+  document.getElementById('rollDate').value=now.getFullYear()+'-'+pad(now.getMonth()+1)+'-'+pad(now.getDate())+'T'+pad(now.getHours())+':'+pad(now.getMinutes());
+}
+function onRollClsChange(){
+  document.getElementById('rollStatusBar').style.display='none';
+}
+function startRoll(){
+  var cls=document.getElementById('rollCls').value;
+  if(!cls){alert('請選擇班級');return;}
+  _rollSession={
+    cls:cls,
+    date:document.getElementById('rollDate').value,
+    period:document.getElementById('rollPeriod').value,
+    subject:document.getElementById('rollSubject').value.trim(),
+    records:{}
+  };
+  var stus=(GS.students||[]).filter(function(s){return s.class_name===cls;});
+  stus.forEach(function(s){_rollSession.records[s.student_id]={status:'present',note:''}; });
+  document.getElementById('rollStatusBar').style.display='block';
+  renderAttGrid(stus);
+  updateRollMetrics();
+}
+function renderAttGrid(stus){
+  var html=stus.map(function(s){
+    var rec=_rollSession.records[s.student_id]||{status:'present',note:''};
+    return'<div class="att-card" id="ac-'+s.student_id+'">'
+      +'<div>'
+        +'<div class="att-name">'+s.seat_number+'. '+s.student_name+'</div>'
+        +'<div class="att-sub">'+(s.gender||'')+(s.parent1_name?' · '+s.parent1_name:'')+(s.parent2_name?' / '+s.parent2_name:'')+'</div>'
+      +'</div>'
+      +'<div class="att-btns">'
+        +'<button class="att-btn present" onclick="setStu(\''+s.student_id+'\',\'present\')">出席</button>'
+        +'<button class="att-btn absent"  onclick="setStu(\''+s.student_id+'\',\'absent\')">缺席</button>'
+        +'<button class="att-btn late"    onclick="setStu(\''+s.student_id+'\',\'late\')">遲到</button>'
+        +'<button class="att-btn early"   onclick="setStu(\''+s.student_id+'\',\'early\')">早退</button>'
+        +'<button class="att-btn skip"    onclick="setStu(\''+s.student_id+'\',\'skip\')">曠課</button>'
+      +'</div>'
+      +'<input class="note-input" placeholder="備註（選填）" value="'+esc(rec.note)+'" onchange="setNote(\''+s.student_id+'\',this.value)"/>'
+      +'<div class="att-status '+STATUS_CLASS[rec.status]+'" id="as-'+s.student_id+'" style="background:var(--'+getStatusColor(rec.status)+'-bg);color:var(--'+getStatusColor(rec.status)+')">'
+        +STATUS_LABELS[rec.status]
+      +'</div>'
+    +'</div>';
+  }).join('');
+  document.getElementById('attGrid').innerHTML=html;
+}
+function getStatusColor(s){
+  return {present:'green',absent:'red',late:'orange',early:'yellow',skip:'blue'}[s]||'gray600';
+}
+function setStu(id, status){
+  if(!_rollSession.records[id]) _rollSession.records[id]={status:'present',note:''};
+  _rollSession.records[id].status=status;
+  var el=document.getElementById('as-'+id);
+  if(el){
+    var c=getStatusColor(status);
+    el.style.background='var(--'+c+'-bg)'; el.style.color='var(--'+c+')';
+    el.textContent=STATUS_LABELS[status];
+  }
+  updateRollMetrics();
+}
+function setNote(id,val){
+  if(!_rollSession.records[id]) _rollSession.records[id]={status:'present',note:''};
+  _rollSession.records[id].note=val;
+}
+function setAllStatus(status){
+  Object.keys(_rollSession.records).forEach(function(id){setStu(id,status);});
+}
+function updateRollMetrics(){
+  var counts={present:0,absent:0,late:0,early:0,skip:0};
+  Object.values(_rollSession.records).forEach(function(r){if(counts[r.status]!==undefined)counts[r.status]++;});
+  Object.keys(counts).forEach(function(k){
+    var el=document.getElementById('rm-'+k);if(el)el.textContent=counts[k];
+  });
+}
+function saveRoll(){
+  var cls=_rollSession.cls;
+  if(!cls){alert('尚未開始點名');return;}
+  var stus=(GS.students||[]).filter(function(s){return s.class_name===cls;});
+  var dateStr=_rollSession.date?new Date(_rollSession.date).toLocaleString('zh-TW'):'';
+  var newRecs=[];
+  stus.forEach(function(s){
+    var r=_rollSession.records[s.student_id]||{status:'present',note:''};
+    newRecs.push({
+      id: Date.now()+Math.random(),
+      studentId: s.student_id,
+      seat: s.seat_number,
+      name: s.student_name,
+      cls: s.class_name,
+      gender: s.gender,
+      studentLineId: s.student_line_id,
+      parent1LineId: s.parent1_line_id,
+      parent1Name:   s.parent1_name,
+      parent1Rel:    s.parent1_relation,
+      parent2LineId: s.parent2_line_id,
+      parent2Name:   s.parent2_name,
+      parent2Rel:    s.parent2_relation,
+      date: _rollSession.date,
+      dateStr: dateStr,
+      period: _rollSession.period,
+      subject: _rollSession.subject,
+      status: r.status,
+      note: r.note,
+      notified: false
+    });
+  });
+  GS.attendance=(GS.attendance||[]).concat(newRecs);
+  save();
+  alert('✓ 已儲存 '+cls+' 班 '+dateStr+' '+_rollSession.period+' 點名記錄（'+newRecs.length+' 人）');
+}
+
+// ── Records ──
+function renderRecords(){
+  fillClsSel('recCls');
+  var cls=document.getElementById('recCls').value;
+  var status=document.getElementById('recStatus').value;
+  var recs=(GS.attendance||[]).filter(function(r){
+    if(cls&&r.cls!==cls)return false;
+    if(status&&r.status!==status)return false;
+    return true;
+  }).sort(function(a,b){return (b.date||'')>(a.date||'')?1:-1;});
+  var html=recs.map(function(r){
+    return'<tr>'
+      +'<td style="font-size:12px">'+r.dateStr+'</td>'
+      +'<td><span style="font-size:12px;color:var(--gray600)">'+r.period+'</span></td>'
+      +'<td><span style="font-size:12px">'+r.cls+'</span></td>'
+      +'<td>'+r.seat+'</td>'
+      +'<td><strong>'+r.name+'</strong></td>'
+      +'<td><span class="badge '+STATUS_BADGE[r.status]+'">'+STATUS_LABELS[r.status]+'</span></td>'
+      +'<td style="font-size:12px;color:var(--gray600)">'+( r.note||'')+'</td>'
+      +'<td style="font-size:11px">'+(r.notified?'<span style="color:var(--green)">✓ 已通知</span>':'--')+'</td>'
+      +'<td><button class="btn btn-sm btn-danger" onclick="delRec(\''+r.id+'\')" style="padding:3px 8px">刪</button></td>'
+      +'</tr>';
+  });
+  document.getElementById('recBody').innerHTML=html.join('')||
+    '<tr><td colspan="9" style="text-align:center;padding:20px;color:var(--gray400)">尚無紀錄</td></tr>';
+}
+function delRec(id){
+  GS.attendance=(GS.attendance||[]).filter(function(r){return String(r.id)!==String(id);});
+  save(); renderRecords();
+}
+function clearAllAtt(){
+  if(!confirm('確定清除所有出缺席紀錄？'))return;
+  GS.attendance=[]; save(); renderRecords();
+}
+function exportAttCSV(){
+  var cls=document.getElementById('recCls').value;
+  var status=document.getElementById('recStatus').value;
+  var recs=(GS.attendance||[]).filter(function(r){
+    if(cls&&r.cls!==cls)return false;
+    if(status&&r.status!==status)return false;
+    return true;
+  });
+  var rows=[['日期','節次','班級','座號','姓名','狀態','備註','已通知']];
+  recs.forEach(function(r){rows.push([r.dateStr,r.period,r.cls,r.seat,r.name,STATUS_LABELS[r.status],r.note||'',r.notified?'是':'否']);});
+  dlCSV(rows,'出缺席紀錄_'+new Date().toLocaleDateString('zh-TW').replace(/\//g,'-'));
+}
+
+// ── Stats ──
+function renderAttStats(){
+  fillClsSel('statCls');
+  var cls=document.getElementById('statCls').value;
+  var recs=(GS.attendance||[]).filter(function(r){return !cls||r.cls===cls;});
+  if(!recs.length){document.getElementById('attStatsContent').innerHTML='<div style="text-align:center;padding:30px;color:var(--gray400)">尚無出缺席資料</div>';return;}
+  // By student summary
+  var byName={};
+  recs.forEach(function(r){
+    if(!byName[r.name]) byName[r.name]={seat:r.seat,cls:r.cls,present:0,absent:0,late:0,early:0,skip:0,total:0};
+    byName[r.name][r.status]=(byName[r.name][r.status]||0)+1;
+    byName[r.name].total++;
+  });
+  var rows=Object.entries(byName).sort(function(a,b){
+    var aSkip=(a[1].skip||0)+(a[1].absent||0);
+    var bSkip=(b[1].skip||0)+(b[1].absent||0);
+    return bSkip-aSkip;
+  });
+  var tbl='<table><thead><tr><th>班級</th><th>座號</th><th>姓名</th>'
+    +'<th style="text-align:center">出席</th>'
+    +'<th style="text-align:center">缺席</th>'
+    +'<th style="text-align:center">遲到</th>'
+    +'<th style="text-align:center">早退</th>'
+    +'<th style="text-align:center;color:var(--red)">曠課</th>'
+    +'</tr></thead><tbody>';
+  rows.forEach(function(e){
+    var n=e[0],d=e[1];
+    var hi=(d.skip||0)+(d.absent||0)>3;
+    tbl+='<tr style="'+(hi?'background:#fff8f8':'')+'"><td>'+d.cls+'</td><td>'+d.seat+'</td><td><strong>'+n+'</strong></td>'
+      +'<td style="text-align:center"><span style="color:var(--green)">'+(d.present||0)+'</span></td>'
+      +'<td style="text-align:center"><span style="color:var(--red)">'+(d.absent||0)+'</span></td>'
+      +'<td style="text-align:center"><span style="color:var(--orange)">'+(d.late||0)+'</span></td>'
+      +'<td style="text-align:center"><span style="color:#856404">'+(d.early||0)+'</span></td>'
+      +'<td style="text-align:center"><span style="color:var(--blue);font-weight:600">'+(d.skip||0)+'</span></td>'
+      +'</tr>';
+  });
+  tbl+='</tbody></table>';
+  document.getElementById('attStatsContent').innerHTML=tbl;
+}
+
+// ── LINE notifications ──
+async function linePush(uid,msg){
+  var tk=GS.line&&GS.line.token;if(!tk||!uid)return false;
+  var wu=(GS.line.workerUrl||'').replace(/\/$/,'');
+  try{var r=await fetch(wu+'/push',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:tk,to:uid,message:msg})});var d=await r.json();return d.ok!==false;}catch(e){return false;}
+}
+async function lineNotifyAbsent(){
+  var log=document.getElementById('notifyLog');log.style.display='block';log.textContent='通知缺席/曠課家長…\n';
+  function add(m){log.textContent+=m+'\n';log.scrollTop=log.scrollHeight;}
+  // Get today's absent/skip records that haven't been notified
+  var today=new Date().toLocaleDateString('zh-TW');
+  var toNotify=(GS.attendance||[]).filter(function(r){
+    return (r.status==='absent'||r.status==='skip')&&!r.notified&&r.dateStr&&r.dateStr.includes(today.replace(/\//g,'/').substring(0,6));
+  });
+  if(!toNotify.length){add('今日無未通知的缺席/曠課紀錄');return;}
+  for(var i=0;i<toNotify.length;i++){
+    var r=toNotify[i];
+    var type=STATUS_LABELS[r.status];
+    var msg='【出缺席通知】\n您好，'+r.name+' 同學今日（'+r.dateStr+'）'+r.period+(r.subject?' '+r.subject:'')+'【'+type+'】。'+(r.note?'\n備註：'+r.note:'')+(r.status==='skip'?'\n請與導師聯繫確認原因。':'');
+    var sent=false;
+    if(r.parent1LineId){var ok=await linePush(r.parent1LineId,msg);add((ok?'✓':'✗')+' '+r.name+' '+r.parent1Rel);if(ok)sent=true;}
+    if(r.parent2LineId){var ok2=await linePush(r.parent2LineId,msg);add((ok2?'✓':'✗')+' '+r.name+' '+r.parent2Rel);if(ok2)sent=true;}
+    if(r.studentLineId&&r.status==='skip'){var ok3=await linePush(r.studentLineId,msg);add((ok3?'✓':'✗')+' '+r.name+' 學生');}
+    if(sent){r.notified=true;}
+  }
+  save();add('✅ 完成！');
+}
+async function lineNotifyLate(){
+  var log=document.getElementById('notifyLog');log.style.display='block';log.textContent='通知遲到家長…\n';
+  function add(m){log.textContent+=m+'\n';log.scrollTop=log.scrollHeight;}
+  var today=new Date().toLocaleDateString('zh-TW');
+  var toNotify=(GS.attendance||[]).filter(function(r){
+    return r.status==='late'&&!r.notified&&r.dateStr&&r.dateStr.includes(today.replace(/\//g,'/').substring(0,6));
+  });
+  if(!toNotify.length){add('今日無未通知的遲到紀錄');return;}
+  for(var i=0;i<toNotify.length;i++){
+    var r=toNotify[i];
+    var msg='【遲到通知】\n您好，'+r.name+' 同學今日（'+r.dateStr+'）'+r.period+(r.subject?' '+r.subject:'')+'【遲到】。'+(r.note?'\n備註：'+r.note:'');
+    if(r.parent1LineId){var ok=await linePush(r.parent1LineId,msg);add((ok?'✓':'✗')+' '+r.name+' '+r.parent1Rel);if(ok)r.notified=true;}
+    if(r.parent2LineId){var ok2=await linePush(r.parent2LineId,msg);add((ok2?'✓':'✗')+' '+r.name+' '+r.parent2Rel);}
+  }
+  save();add('✅ 完成！');
+}
+async function sendAttSummaryToTeacher(){
+  var log=document.getElementById('notifyLog');log.style.display='block';log.textContent='傳送統計給老師…\n';
+  function add(m){log.textContent+=m+'\n';}
+  var today=new Date().toLocaleDateString('zh-TW');
+  var recs=(GS.attendance||[]).filter(function(r){return r.dateStr&&r.dateStr.includes(today.replace(/\//g,'/').substring(0,6));});
+  if(!recs.length){add('今日尚無點名紀錄');return;}
+  var counts={present:0,absent:0,late:0,early:0,skip:0};
+  recs.forEach(function(r){if(counts[r.status]!==undefined)counts[r.status]++;});
+  var absentNames=recs.filter(function(r){return r.status==='absent'||r.status==='skip';}).map(function(r){return r.name+'('+STATUS_LABELS[r.status]+')';}).join('、');
+  var msg='【今日出缺席統計】\n日期：'+today+'\n'
+    +'出席：'+counts.present+'　缺席：'+counts.absent+'　遲到：'+counts.late+'　早退：'+counts.early+'　曠課：'+counts.skip+'\n'
+    +(absentNames?'缺/曠課：'+absentNames:'全員出席');
+  var tid=GS.line&&GS.line.teacherUid;
+  var hid=GS.line&&GS.line.homeroomUid;
+  if(!tid&&!hid){add('⚠ 請至首頁「LINE 設定」填入老師 User ID');return;}
+  if(tid){var ok=await linePush(tid,msg);add((ok?'✓':'✗')+' 任課老師');}
+  if(hid){var ok2=await linePush(hid,msg);add((ok2?'✓':'✗')+' 導師');}
+  add('完成！');
+}
+async function sendBroadcast(){
+  var cls=document.getElementById('broadcastCls').value;
+  var target=document.getElementById('broadcastTarget').value;
+  var msg=document.getElementById('broadcastMsg').value.trim();
+  if(!msg){alert('請填入訊息內容');return;}
+  var log=document.getElementById('broadcastLog');log.style.display='block';log.textContent='廣播中…\n';
+  function add(m){log.textContent+=m+'\n';log.scrollTop=log.scrollHeight;}
+  var stus=(GS.students||[]).filter(function(s){return !cls||s.class_name===cls;});
+  for(var i=0;i<stus.length;i++){
+    var s=stus[i];
+    if(target==='student'||target==='both'){if(s.student_line_id){var ok=await linePush(s.student_line_id,msg);add((ok?'✓':'✗')+' '+s.student_name+' 學生');}}
+    if(target==='parent'||target==='parent1'||target==='both'){if(s.parent1_line_id){var ok1=await linePush(s.parent1_line_id,msg);add((ok1?'✓':'✗')+' '+s.student_name+' '+s.parent1_relation);}}
+    if(target==='parent'||target==='parent2'||target==='both'){if(s.parent2_line_id){var ok2=await linePush(s.parent2_line_id,msg);add((ok2?'✓':'✗')+' '+s.student_name+' '+s.parent2_relation);}}
+  }
+  add('✅ 完成！');
+}
+
+function dlCSV(rows,name){var a=document.createElement('a');a.href='data:text/csv;charset=utf-8,\uFEFF'+rows.map(function(r){return r.map(function(c){return'"'+(c||'').replace(/"/g,'""')+'"';}).join(',');}).join('\n');a.download=name+'.csv';a.click();}
+function esc(s){return String(s||'').replace(/"/g,'&quot;').replace(/</g,'&lt;');}
+
+// ── Init ──
+initClsSel();
+fillClsSel('recCls'); fillClsSel('statCls'); fillClsSel('broadcastCls');
+</script>
+</body>
+</html>
