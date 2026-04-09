@@ -279,9 +279,27 @@ tr:last-child td{border-bottom:none}
 // ══════════════════════════════════════════════
 //  全域狀態
 // ══════════════════════════════════════════════
-var GS={};
-try{var _d=localStorage.getItem('eduSys');if(_d)GS=JSON.parse(_d);}catch(e){}
-GS.attendance=GS.attendance||[]; // [{id,cls,date,period,subject,records:[{studentId,seat,name,status,time,note,notified}]}]
+var GS = {
+  curYear:114, curSem:1,
+  students:[], clubs:[],
+  cfg:{ schoolName:'',teacherName:'',subject:'',myCls:[],myHomeroom:'',myClubs:[] },
+  line:{ workerUrl:'',scriptUrl:'',token:'',teacherUid:'',homeroomUid:'',notifyTokens:[],apiSecret:'edu2026secret' },
+  gemini:{ key:'',model:'' },
+  yearArchive:[], homeworks:[], submissions:{}, answerFiles:{}, formData:{},
+  attendance:[], scores:{}, reports:{},
+  timetable:[]
+};
+(function(){
+  try{
+    var _d=localStorage.getItem('eduSys');
+    if(_d){
+      var _p=JSON.parse(_d);
+      Object.keys(GS).forEach(function(k){ if(_p[k]!==undefined) GS[k]=_p[k]; });
+    }
+  }catch(e){}
+})();
+GS.attendance=GS.attendance||[];
+GS.timetable=GS.timetable||[];
 function save(){try{localStorage.setItem('eduSys',JSON.stringify(GS));}catch(e){}}
 
 // ── 節次定義 ──
@@ -461,6 +479,7 @@ function autoDetectSlot(){
     var found=TT_PERIODS_LOCAL.find(function(p){return p.id===id;});
     return found?found.label:id;
   }
+} // end autoDetectSlot
 
 var _bannerEl=null;
 function showSlotBanner(msg, isNow){
