@@ -351,8 +351,14 @@ var _rollCls='';var _rollDate='';var _rollPeriod='';var _rollSubject='';
 
 function buildClsSels(){
   var myCls=getMyCls();
-  var allCls=myCls.length?myCls:
-    Array.from(new Set((GS.students||[]).filter(function(s){return s.status!=='graduated';}).map(function(s){return s.class_name;}).filter(Boolean))).sort();
+  // 一般班級：從學生資料產生（未畢業）
+  var regularCls=Array.from(new Set((GS.students||[]).filter(function(s){return s.status!=='graduated';}).map(function(s){return s.class_name;}).filter(Boolean))).sort();
+  // 社團：所有已建立的社團名稱（自動加入，不需老師另行設定）
+  var clubCls=(GS.clubs||[]).map(function(c){return c.name;}).filter(Boolean);
+  // 合併：若有老師設定則用設定；否則一般班級＋所有社團
+  var allCls=myCls.length
+    ? Array.from(new Set(myCls.concat(clubCls))) // 老師有設定時，仍補入所有社團
+    : Array.from(new Set(regularCls.concat(clubCls)));
 
   ['rollCls','recCls','statCls','notifyCls'].forEach(function(elId){
     var sel=document.getElementById(elId);
