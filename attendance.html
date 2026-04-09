@@ -399,21 +399,34 @@ function autoDetectSlot(){
 
   if(!best) return;
 
-  // 填入班級
+  // 填入班級（先移除 onchange 避免觸發 buildPeriodSel 兩次）
   var clsSel=document.getElementById('rollCls');
+  var origOnchange=clsSel.onchange;
+  clsSel.onchange=null;
   clsSel.value=best.cls;
   if(!clsSel.value){
-    // 若選單尚無此班（社團），補入
     var o=document.createElement('option');o.value=best.cls;o.textContent=best.cls;
     clsSel.appendChild(o); clsSel.value=best.cls;
   }
+  clsSel.onchange=origOnchange;
+
   // 填入節次
   var date=document.getElementById('rollDate').value;
   buildPeriodSel(best.cls, date);
   var periodSel=document.getElementById('rollPeriod');
   periodSel.value=best.period;
-  // 填入科目
-  if(best.subject) document.getElementById('rollSubject').value=best.subject;
+
+  // 填入科目（從課表帶入，優先於 cfg.subject）
+  var subjectEl=document.getElementById('rollSubject');
+  if(best.subject) subjectEl.value=best.subject;
+
+  // 找連堂：下一節同班是否也有課表
+  var pidx=TT_PERIODS_LOCAL.findIndex(function(p){return p.id===best.period;});
+  var nextSlot=null;
+  if(pidx>=0 && pidx<TT_PERIODS_LOCAL.length-1){
+    var nextId=TT_PERIODS_LOCAL[pidx+1].id;
+    nextSlot=tt.find(function(s){return s.cls===best.cls&&s.day===best.day&&s.period===nextId;});
+  }
 
   // 顯示提示橫幅
   var p=getPeriod(best.period);
@@ -422,36 +435,39 @@ function autoDetectSlot(){
     msg='📌 現在：'+best.cls+' '+p.label+'（'+p.start+'–'+p.end+'）';
     if(best.subject) msg+=' | '+best.subject;
     if(best.teacher) msg+=' | '+best.teacher;
+    if(nextSlot) msg+=' 　🔗 連堂→'+ttGetPeriodLabel(nextSlot.period);
   } else {
     var mins=bestDiff;
     var timeStr=mins>=60?(Math.floor(mins/60)+'小時'+(mins%60?mins%60+'分':'')):(mins+'分鐘後');
     msg='⏰ '+timeStr+'後：'+best.cls+' '+p.label+'（'+p.start+'–'+p.end+'）';
     if(best.subject) msg+=' | '+best.subject;
     if(best.teacher) msg+=' | '+best.teacher;
+    if(nextSlot) msg+=' 　🔗 連堂→'+ttGetPeriodLabel(nextSlot.period)+(nextSlot.subject?' '+nextSlot.subject:'');
   }
   showSlotBanner(msg, isNow);
 
-  // 連堂偵測：找前一節同班是否有點名紀錄
-  if(isNow){
-    var pidx=TT_PERIODS_LOCAL.findIndex(function(p){return p.id===best.period;});
-    if(pidx>0){
-      var prevId=TT_PERIODS_LOCAL[pidx-1].id;
-      var prevSlot=tt.find(function(s){return s.cls===best.cls&&s.day===best.day&&s.period===prevId;});
-      if(prevSlot){
-        var today2=document.getElementById('rollDate').value;
-        var prevAtt=(GS.attendance||[]).find(function(a){
-          return a.cls===best.cls&&a.date===today2&&a.period===prevId;
+  // 連堂偵測：找前一節同班是否有點名紀錄（上課中才提示帶入）
+  if(isNow && pidx>0){
+    var prevId=TT_PERIODS_LOCAL[pidx-1].id;
+    var prevSlot=tt.find(function(s){return s.cls===best.cls&&s.day===best.day&&s.period===prevId;});
+    if(prevSlot){
+      var today2=document.getElementById('rollDate').value;
+      var prevAtt=(GS.attendance||[]).find(function(a){
+        return a.cls===best.cls&&a.date===today2&&a.period===prevId;
+      });
+      if(prevAtt&&prevAtt.records&&prevAtt.records.length){
+        showCarryBanner(prevSlot, prevAtt.records.length, function(){
+          carryForwardAttendance(best, prevAtt, date, getPeriod);
         });
-        if(prevAtt&&prevAtt.records&&prevAtt.records.length){
-          // 顯示連堂提示
-          showCarryBanner(prevSlot, prevAtt.records.length, function(){
-            carryForwardAttendance(best, prevAtt, date, getPeriod);
-          });
-        }
       }
     }
   }
-}
+
+  // 輔助：在 attendance.html 中也能取得 TT_PERIODS 的 label
+  function ttGetPeriodLabel(id){
+    var found=TT_PERIODS_LOCAL.find(function(p){return p.id===id;});
+    return found?found.label:id;
+  }
 
 var _bannerEl=null;
 function showSlotBanner(msg, isNow){
