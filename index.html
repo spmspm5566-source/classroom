@@ -20,15 +20,18 @@
 }
 body{font-family:'Noto Sans TC',system-ui,sans-serif;font-size:14px;background:var(--gray100);color:var(--black);min-height:100vh}
 /* ── Header ── */
-.sys-header{background:var(--black);color:var(--white);padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;gap:12px}
-.sys-logo{font-size:17px;font-weight:600;display:flex;align-items:center;gap:8px;white-space:nowrap}
-.sys-logo small{font-size:11px;opacity:.45;font-weight:400}
-.nav-links{display:flex;gap:2px;flex-shrink:0}
-.nav-a{color:rgba(255,255,255,.7);text-decoration:none;padding:6px 11px;border-radius:var(--radius-sm);font-size:12px;transition:all .15s;white-space:nowrap}
-.nav-a:hover,.nav-a.active{background:rgba(255,255,255,.12);color:#fff}
+.sys-header{background:var(--black);color:var(--white);padding:8px 16px;position:sticky;top:0;z-index:100}
+.sys-header-row1{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.sys-header-row2{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+.sys-logo{font-size:15px;font-weight:600;display:flex;align-items:center;gap:6px;color:var(--white);white-space:nowrap}
+.sys-logo small{font-size:10px;opacity:.45;font-weight:400}
+.nav-links{display:flex;gap:2px;flex-wrap:wrap}
+.nav-a{color:rgba(255,255,255,.8);text-decoration:none;padding:5px 10px;border-radius:var(--radius-sm);font-size:12px;transition:all .15s;white-space:nowrap;background:rgba(255,255,255,.08)}
+.nav-a:hover{background:rgba(255,255,255,.18);color:#fff}
+.nav-a.active{background:rgba(255,255,255,.22);color:#fff;font-weight:600}
 /* ── Year badge ── */
-.year-badge{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.1);padding:5px 12px;border-radius:20px;font-size:12px;white-space:nowrap}
-.year-badge strong{font-size:14px}
+.year-badge{display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.12);padding:4px 10px;border-radius:20px;font-size:12px;white-space:nowrap}
+.year-badge strong{font-size:13px}
 /* ── Layout ── */
 .wrap{max-width:1100px;margin:0 auto;padding:20px 16px}
 /* ── Cards ── */
@@ -133,18 +136,21 @@ input[type=checkbox]{width:auto;accent-color:var(--black)}
 </div>
 
 <header class="sys-header">
-  <div class="sys-logo">🏫 班級教務管理系統 <small>Teacher Dashboard</small></div>
-  <div class="year-badge">
-    <span>學年度</span>
-    <strong id="headerYear">114</strong>
-    <select id="headerYearSel" onchange="switchYear(this.value)" style="width:auto;padding:3px 6px;font-size:12px;border:1px solid rgba(255,255,255,.3);background:transparent;color:var(--white);border-radius:4px"></select>
+  <div class="sys-header-row1">
+    <div class="sys-logo">🏫 班級教務管理系統 <small>Teacher Dashboard</small></div>
+    <div class="year-badge">
+      <span id="headerYearLabel">114學年 第2學期</span>
+      <select id="headerYearSel" onchange="switchYear(this.value)" style="width:auto;padding:2px 4px;font-size:11px;border:1px solid rgba(255,255,255,.3);background:transparent;color:var(--white);border-radius:4px"></select>
+    </div>
   </div>
-  <nav class="nav-links">
-    <a class="nav-a active" href="index.html">🏠 首頁</a>
-    <a class="nav-a" href="homework.html">📋 作業</a>
-    <a class="nav-a" href="attendance.html">✅ 點名</a>
-    <a class="nav-a" href="academic.html">📊 學涯</a>
-  </nav>
+  <div class="sys-header-row2">
+    <nav class="nav-links">
+      <a class="nav-a active" href="index.html">🏠 首頁</a>
+      <a class="nav-a" href="homework.html">📋 作業</a>
+      <a class="nav-a" href="attendance.html">✅ 點名</a>
+      <a class="nav-a" href="academic.html">📊 學涯</a>
+    </nav>
+  </div>
 </header>
 
 <div class="wrap">
@@ -609,12 +615,16 @@ function initYearSel(){
     if(y===GS.curYear)o.selected=true;
     sel.appendChild(o);
   });
-  document.getElementById('headerYear').textContent=GS.curYear;
+  updateHeaderYearLabel();
+}
+function updateHeaderYearLabel(){
+  var semLabel=GS.curSem===2?'第二學期':'第一學期';
+  var el=document.getElementById('headerYearLabel');
+  if(el)el.textContent=GS.curYear+'學年 '+semLabel;
 }
 function switchYear(y){
   y=parseInt(y);
-  if(y===GS.curYear){document.getElementById('headerYear').textContent=GS.curYear;return;}
-  // Load archived year (future feature — just show notice for now)
+  if(y===GS.curYear){updateHeaderYearLabel();return;}
   alert('查看 '+y+' 學年歷史資料功能將於 Google Sheets 歸檔後開放。');
   document.getElementById('headerYearSel').value=GS.curYear;
 }
@@ -1354,9 +1364,9 @@ function dlCSV(rows,name){
 // ══════════════════════════════════════════════════════
 //  密碼保護
 // ══════════════════════════════════════════════════════
-// 預設密碼：spm2026（請改成自己的）
+// 預設密碼：teacher2026（請改成自己的）
 // 修改方式：把下面 TEACHER_PASSWORD 改成你要的密碼
-var TEACHER_PASSWORD = 'spm2026';
+var TEACHER_PASSWORD = 'teacher2026';
 var SESSION_KEY = 'eduSys_auth';
 
 function doLogin(){
