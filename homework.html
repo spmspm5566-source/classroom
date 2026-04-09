@@ -14,10 +14,11 @@
   --line:#06C755;--radius:10px;--radius-sm:6px;--shadow:0 2px 8px rgba(0,0,0,.08);
 }
 body{font-family:'Noto Sans TC',system-ui,sans-serif;font-size:14px;background:var(--gray100);color:var(--black);min-height:100vh}
-.sys-header{background:var(--black);color:var(--white);padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.sys-header{background:var(--black);color:var(--white);padding:8px 16px;position:sticky;top:0;z-index:100}
+.sys-header-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
 .sys-logo{font-size:17px;font-weight:600;display:flex;align-items:center;gap:8px}
 .sys-logo span{font-size:11px;opacity:.5;font-weight:400}
-.nav-links{display:flex;gap:4px}
+.nav-links{display:flex;gap:2px;flex-wrap:wrap}
 .nav-a{color:rgba(255,255,255,.7);text-decoration:none;padding:6px 12px;border-radius:var(--radius-sm);font-size:13px;transition:all .15s;white-space:nowrap}
 .nav-a:hover,.nav-a.active{background:rgba(255,255,255,.12);color:#fff}
 .wrap{max-width:1000px;margin:0 auto;padding:20px 16px}
@@ -110,7 +111,9 @@ tr:last-child td{border-bottom:none}
 </div>
 
 <header class="sys-header">
-  <div class="sys-logo">📋 作業管理 <span>班級教務管理系統</span></div>
+  <div class="sys-header-top">
+    <div class="sys-logo">📋 作業管理 <small>班級教務管理系統</small></div>
+  </div>
   <nav class="nav-links">
     <a class="nav-a" href="index.html">🏠 首頁</a>
     <a class="nav-a active" href="homework.html">📋 作業</a>
@@ -1330,7 +1333,7 @@ renderHwClsPills();renderHwList();
 ['subHwSel','ansHwSel','statsHwSel','notifyHwSel'].forEach(syncSel);
 
 // ── 密碼保護 ──
-var TEACHER_PASSWORD = 'spm2026';
+var TEACHER_PASSWORD = 'teacher2026';
 var SESSION_KEY = 'eduSys_auth';
 function doLogin(){
   var pw=document.getElementById('pwInput').value;

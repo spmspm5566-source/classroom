@@ -38,9 +38,10 @@ body{font-family:'Noto Sans TC',system-ui,sans-serif;font-size:14px;background:v
 .card{background:var(--white);border:1px solid var(--gray200);border-radius:var(--radius);padding:18px 20px;margin-bottom:14px;box-shadow:var(--shadow)}
 .card-title{font-size:15px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:7px}
 /* ── Tabs ── */
-.tabs{display:flex;border-bottom:2px solid var(--gray200);margin-bottom:20px;overflow-x:auto;gap:0}
-.tab{padding:11px 16px;font-size:13px;cursor:pointer;border:none;background:none;color:var(--gray600);border-bottom:2px solid transparent;margin-bottom:-2px;white-space:nowrap;font-family:inherit;transition:color .15s}
+.tabs{display:flex;border-bottom:2px solid var(--gray200);margin-bottom:20px;overflow-x:auto;gap:0;flex-wrap:wrap}
+.tab{padding:9px 13px;font-size:13px;cursor:pointer;border:none;background:none;color:var(--gray600);border-bottom:2px solid transparent;margin-bottom:-2px;white-space:nowrap;font-family:inherit;transition:color .15s}
 .tab:hover{color:var(--black)}.tab.active{color:var(--black);border-bottom-color:var(--black);font-weight:600}
+@media(max-width:600px){.tab{padding:7px 10px;font-size:12px}}
 .pg{display:none}.pg.active{display:block}
 /* ── Forms ── */
 .lbl{font-size:12px;color:var(--gray600);margin-bottom:4px;display:block;font-weight:500}
@@ -973,7 +974,7 @@ function saveYearCfg(){
   GS.curYear=parseInt(document.getElementById('curYear').value)||114;
   GS.curSem=parseInt(document.getElementById('curSem').value)||1;
   if(GS.cfg)GS.cfg.schoolYear=GS.curYear;
-  save();initYearSel();alert('✓ 學年度設定已儲存');
+  save();initYearSel();updateHeaderYearLabel();alert('✓ 學年度設定已儲存');
 }
 function previewPromotion(){
   var newYear=parseInt(document.getElementById('newYearInput').value);
@@ -1275,7 +1276,7 @@ function saveCfg(){
   GS.curSem=parseInt(document.getElementById('cfgSem').value)||1;
   GS.cfg.schoolYear=GS.curYear;
   GS.gemini.key=document.getElementById('geminiKey').value.trim();
-  save();initYearSel();refreshHome();alert('✓ 系統設定已儲存');
+  save();initYearSel();updateHeaderYearLabel();refreshHome();alert('✓ 系統設定已儲存');
 }
 async function testGemini(){
   var key=document.getElementById('geminiKey').value.trim()||GS.gemini.key;
@@ -1399,13 +1400,142 @@ function doLogin(){
 })();
 
 // ══════════════════════════════════════════════════════
+//  自動學年度計算
+// ══════════════════════════════════════════════════════
+
+/**
+ * 自動計算台灣學年度與學期（純前端）
+ * 7~12月 = 第一學期，1~6月 = 第二學期
+ */
+function calcSchoolYear(){
+  var now=new Date();
+  var month=now.getMonth()+1;
+  var year=now.getFullYear();
+  var rocYear,sem;
+  if(month>=7){rocYear=year-1911;sem=1;}
+  else{rocYear=year-1911-1;sem=2;}
+  return{year:rocYear,sem:sem,month:month};
+}
+
+/**
+ * 從 Google Sheets 取得系統設定，並處理升班提示
+ */
+async function initFromSheets(){
+  var url=GS.line&&GS.line.scriptUrl;
+  var secret=GS.line&&GS.line.apiSecret||'edu2026secret';
+  var calc=calcSchoolYear();
+
+  if(url){
+    try{
+      var r=await fetch(url+'?action=getSystemConfig&secret='+encodeURIComponent(secret));
+      var d=await r.json();
+      if(d.ok&&d.data){
+        var cfg=d.data;
+        // 以計算值為主（伺服器端也是同樣邏輯，以防萬一用計算值）
+        GS.curYear=cfg.calc_year||calc.year;
+        GS.curSem =cfg.calc_sem||calc.sem;
+        save();
+        initYearSel();
+        updateHeaderYearLabel();
+        refreshHome();
+
+        // 升班提示
+        if(cfg.need_promote){
+          setTimeout(function(){
+            if(confirm('新學年度開始！目前：'+cfg.calc_year+'學年 第一學期。是否執行學生升班（1XX→2XX，2XX→3XX，3XX→畢業）？執行前請先備份資料。')){
+              doPromotionAuto(cfg.calc_year);
+            } else {
+              // 使用者選擇不升班，不再提示
+              fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},
+                body:JSON.stringify({action:'saveSystemConfig',secret:secret,
+                  last_promote_year:cfg.calc_year})});
+            }
+          },1000);
+        }
+        return;
+      }
+    }catch(ex){
+      console.warn('Sheets 同步失敗，使用本地計算值：',ex.message);
+    }
+  }
+
+  // 沒有 Sheets 設定時：使用自動計算值
+  var calc2=calcSchoolYear();
+  if(!GS.curYear||GS.curYear<calc2.year){
+    GS.curYear=calc2.year;
+    GS.curSem=calc2.sem;
+    save();
+  } else if(GS.curSem!==calc2.sem&&GS.curYear===calc2.year){
+    GS.curSem=calc2.sem;
+    save();
+  }
+  initYearSel();
+  updateHeaderYearLabel();
+  refreshHome();
+}
+
+/**
+ * 自動升班（從 Sheets 執行）
+ */
+async function doPromotionAuto(newYear){
+  var url=GS.line&&GS.line.scriptUrl;
+  var secret=GS.line&&GS.line.apiSecret||'edu2026secret';
+  var clubNames=(GS.clubs||[]).map(function(c){return c.name;});
+
+  // 先在本地執行升班
+  GS.students.forEach(function(s){
+    if(s.status==='graduated')return;
+    if(clubNames.indexOf(s.class_name)>=0)return;
+    var grade=parseInt(String(s.class_name).charAt(0));
+    var rest=String(s.class_name).substring(1);
+    if(isNaN(grade))return;
+    if(grade===3){s.status='graduated';s.graduatedYear=GS.curYear;}
+    else if(grade===2){s.class_name='3'+rest;}
+    else if(grade===1){s.class_name='2'+rest;}
+  });
+
+  // 歸檔舊學年
+  GS.yearArchive=GS.yearArchive||[];
+  GS.yearArchive.push({
+    year:GS.curYear,
+    archivedAt:new Date().toLocaleString('zh-TW'),
+    studentCount:GS.students.filter(function(s){return s.status!=='graduated';}).length
+  });
+
+  GS.curYear=newYear;
+  GS.curSem=1;
+  save();
+
+  // 同步到 Sheets
+  if(url){
+    try{
+      await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          action:'promoteStudents',secret:secret,
+          new_year:newYear,
+          club_names:clubNames
+        })});
+      await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          action:'saveSystemConfig',secret:secret,
+          school_year:newYear,semester:1,
+          last_promote_year:newYear
+        })});
+    }catch(ex){console.warn('Sheets 升班同步失敗：',ex.message);}
+  }
+
+  initYearSel();updateHeaderYearLabel();refreshHome();
+  buildClassPills();renderStuTable();
+  alert('✅ 升班完成！現在是 '+newYear+' 學年第一學期。請記得至「學生名單」匯入新一年級學生。');
+}
+
+// ══════════════════════════════════════════════════════
 //  初始化
 // ══════════════════════════════════════════════════════
-initYearSel();
-refreshHome();
 buildClassPills();
 renderStuTable();
 renderCfgClasses();
+initFromSheets();
 </script>
 </body>
 </html>
