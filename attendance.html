@@ -984,7 +984,7 @@ function doLogin(){
   var err=document.getElementById('pwErr');
   if(!pw){err.textContent='請輸入密碼';return;}
   if(pw===TEACHER_PASSWORD){
-    sessionStorage.setItem(SESSION_KEY,'1');
+    localStorage.setItem(SESSION_KEY,'1');
     document.getElementById('loginOverlay').style.display='none';
   } else {
     err.textContent='密碼錯誤，請重試';
@@ -993,7 +993,7 @@ function doLogin(){
   }
 }
 (function(){
-  if(sessionStorage.getItem(SESSION_KEY)==='1'){
+  if(localStorage.getItem(SESSION_KEY)==='1'){
     document.getElementById('loginOverlay').style.display='none';
   } else {
     setTimeout(function(){var el=document.getElementById('pwInput');if(el)el.focus();},100);

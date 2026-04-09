@@ -1432,7 +1432,7 @@ function doLogin(){
   if(!pw){ err.textContent='請輸入密碼'; return; }
   if(pw === TEACHER_PASSWORD){
     // 儲存登入狀態（關閉瀏覽器後失效）
-    sessionStorage.setItem(SESSION_KEY, '1');
+    localStorage.setItem(SESSION_KEY, '1');
     document.getElementById('loginOverlay').style.display='none';
     err.textContent='';
   } else {
@@ -1444,7 +1444,7 @@ function doLogin(){
 
 // 檢查是否已登入
 (function checkAuth(){
-  if(sessionStorage.getItem(SESSION_KEY)==='1'){
+  if(localStorage.getItem(SESSION_KEY)==='1'){
     document.getElementById('loginOverlay').style.display='none';
   } else {
     // 頁面載入後聚焦密碼輸入框
