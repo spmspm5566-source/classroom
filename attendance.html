@@ -85,34 +85,20 @@ tr:last-child td{border-bottom:none}
 .stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:8px;margin-bottom:14px}
 .stat-card{background:var(--white);border:1px solid var(--gray200);border-radius:var(--radius-sm);padding:10px;text-align:center}
 .stat-num{font-size:22px;font-weight:700}.stat-lbl{font-size:11px;color:var(--gray600);margin-top:2px}
-/* 登入 */
-#loginOverlay{position:fixed;inset:0;background:#1a1a1a;z-index:9999;display:flex;align-items:center;justify-content:center}
-.login-box{background:#fff;border-radius:16px;padding:36px 40px;width:min(380px,90vw);text-align:center;box-shadow:0 8px 40px rgba(0,0,0,.3)}
-.login-logo{font-size:40px;margin-bottom:12px}
-.login-title{font-size:20px;font-weight:700;margin-bottom:4px}
-.login-sub{font-size:13px;color:#666;margin-bottom:24px}
-.login-input{width:100%;padding:12px 14px;font-size:16px;border:2px solid #e8e8e8;border-radius:10px;text-align:center;letter-spacing:4px;font-family:monospace;outline:none;margin-bottom:12px}
-.login-input:focus{border-color:#1a1a1a}
-.login-btn{width:100%;padding:13px;font-size:15px;font-weight:700;border:none;border-radius:10px;cursor:pointer;background:#1a1a1a;color:#fff;margin-bottom:10px}
-.login-err{color:#c0392b;font-size:13px;min-height:20px}
+/* 登入畫面已移至 index.html，點名頁直接驗證 localStorage */
+.btn-logout{padding:4px 12px;font-size:12px;border:1px solid rgba(255,255,255,.35);border-radius:20px;cursor:pointer;background:transparent;color:rgba(255,255,255,.8);font-family:inherit;transition:all .15s;white-space:nowrap}
+.btn-logout:hover{background:rgba(255,255,255,.15);color:#fff}
 </style>
 </head>
 <body>
 
-<div id="loginOverlay">
-  <div class="login-box">
-    <div class="login-logo">✅</div>
-    <div class="login-title">課堂點名</div>
-    <div class="login-sub">Teacher Dashboard — 請輸入密碼</div>
-    <input class="login-input" type="password" id="pwInput" placeholder="••••••••" maxlength="20" onkeydown="if(event.key==='Enter')doLogin()"/>
-    <button class="login-btn" onclick="doLogin()">登入</button>
-    <div class="login-err" id="pwErr"></div>
-  </div>
-</div>
 
 <header class="sys-header">
   <div class="sys-header-top">
-    <div class="sys-logo">✅ 課堂點名 <span>班級教務管理系統</span></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;width:100%;margin-bottom:6px">
+      <div class="sys-logo">✅ 課堂點名 <span>班級教務管理系統</span></div>
+      <button class="btn-logout" onclick="doLogout()">🔓 登出</button>
+    </div>
   </div>
   <nav class="nav-links">
     <a class="nav-a" href="index.html">🏠 首頁</a>
@@ -976,27 +962,49 @@ function dlCSV(rows,name){
   a.download=name+'.csv';a.click();
 }
 
-// ── 密碼保護 ──
-var TEACHER_PASSWORD='teacher2026';
+// ── 認證：未登入直接跳回首頁 ──
 var SESSION_KEY='eduSys_auth';
-function doLogin(){
-  var pw=document.getElementById('pwInput').value;
-  var err=document.getElementById('pwErr');
-  if(!pw){err.textContent='請輸入密碼';return;}
-  if(pw===TEACHER_PASSWORD){
-    localStorage.setItem(SESSION_KEY,'1');
-    document.getElementById('loginOverlay').style.display='none';
-  } else {
-    err.textContent='密碼錯誤，請重試';
-    document.getElementById('pwInput').value='';
-    document.getElementById('pwInput').focus();
-  }
+var AUTO_LOGOUT_MS = 5 * 60 * 1000; // 5分鐘
+var _logoutTimer = null;
+
+function doLogout(){
+  if(!confirm('確定要登出嗎？')) return;
+  localStorage.removeItem(SESSION_KEY);
+  clearAutoLogout();
+  location.href='index.html';
 }
+
+function startAutoLogout(){
+  clearAutoLogout();
+  _logoutTimer = setTimeout(function(){ forceLogout(); }, AUTO_LOGOUT_MS);
+  ['click','keydown','mousemove','touchstart','scroll'].forEach(function(evt){
+    document.addEventListener(evt, resetAutoLogout, {passive:true});
+  });
+}
+
+function resetAutoLogout(){
+  clearTimeout(_logoutTimer);
+  _logoutTimer = setTimeout(function(){ forceLogout(); }, AUTO_LOGOUT_MS);
+}
+
+function clearAutoLogout(){
+  clearTimeout(_logoutTimer);
+  ['click','keydown','mousemove','touchstart','scroll'].forEach(function(evt){
+    document.removeEventListener(evt, resetAutoLogout);
+  });
+}
+
+function forceLogout(){
+  localStorage.removeItem(SESSION_KEY);
+  clearAutoLogout();
+  location.href='index.html?timeout=1';
+}
+
 (function(){
-  if(localStorage.getItem(SESSION_KEY)==='1'){
-    document.getElementById('loginOverlay').style.display='none';
+  if(localStorage.getItem(SESSION_KEY)!=='1'){
+    location.href='index.html';
   } else {
-    setTimeout(function(){var el=document.getElementById('pwInput');if(el)el.focus();},100);
+    startAutoLogout();
   }
 })();
 buildClsSels();
