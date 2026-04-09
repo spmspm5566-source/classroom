@@ -85,9 +85,32 @@ tr:hover td{background:var(--gray50)}tr:last-child td{border-bottom:none}
 .stu-card:hover{border-color:var(--blue);background:var(--blue-bg)}
 .stu-card.selected{border-color:var(--blue);background:var(--blue-bg)}
 .stu-card.has-report{border-left:3px solid var(--green)}
+/* ── 登入畫面 ── */
+#loginOverlay{position:fixed;inset:0;background:#1a1a1a;z-index:9999;display:flex;align-items:center;justify-content:center}
+.login-box{background:#fff;border-radius:16px;padding:36px 40px;width:min(380px,90vw);text-align:center}
+.login-logo{font-size:40px;margin-bottom:12px}
+.login-title{font-size:20px;font-weight:700;margin-bottom:4px}
+.login-sub{font-size:13px;color:#666;margin-bottom:24px}
+.login-input{width:100%;padding:12px 14px;font-size:16px;border:2px solid #e8e8e8;border-radius:10px;text-align:center;letter-spacing:4px;font-family:monospace;outline:none;margin-bottom:12px}
+.login-input:focus{border-color:#1a1a1a}
+.login-btn{width:100%;padding:13px;font-size:15px;font-weight:700;border:none;border-radius:10px;cursor:pointer;background:#1a1a1a;color:#fff;margin-bottom:10px}
+.login-err{color:#c0392b;font-size:13px;min-height:20px}
 </style>
 </head>
 <body>
+
+<!-- ══ 密碼登入 ══ -->
+<div id="loginOverlay">
+  <div class="login-box" style="box-shadow:0 8px 40px rgba(0,0,0,.3)">
+    <div class="login-logo">🏫</div>
+    <div class="login-title">班級教務管理系統</div>
+    <div class="login-sub">Teacher Dashboard — 請輸入密碼</div>
+    <input class="login-input" type="password" id="pwInput" placeholder="••••••••"
+      maxlength="20" onkeydown="if(event.key==='Enter')doLogin()"/>
+    <button class="login-btn" onclick="doLogin()">登入</button>
+    <div class="login-err" id="pwErr"></div>
+  </div>
+</div>
 
 <header class="sys-header">
   <div class="sys-logo">📊 學涯診斷 <small>班級教務管理系統</small></div>
@@ -1141,6 +1164,32 @@ function dlCSV(rows,name){
 //  初始化
 // ══════════════════════════════════════════════
 refreshImportTab();
+
+// ── 密碼保護 ──
+var TEACHER_PASSWORD = 'asjh3559652';
+var SESSION_KEY = 'eduSys_auth';
+function doLogin(){
+  var pw=document.getElementById('pwInput').value;
+  var err=document.getElementById('pwErr');
+  if(!pw){err.textContent='請輸入密碼';return;}
+  if(pw===TEACHER_PASSWORD){
+    sessionStorage.setItem(SESSION_KEY,'1');
+    document.getElementById('loginOverlay').style.display='none';
+    err.textContent='';
+  } else {
+    err.textContent='密碼錯誤，請重試';
+    document.getElementById('pwInput').value='';
+    document.getElementById('pwInput').focus();
+  }
+}
+(function(){
+  if(sessionStorage.getItem(SESSION_KEY)==='1'){
+    document.getElementById('loginOverlay').style.display='none';
+  } else {
+    setTimeout(function(){var el=document.getElementById('pwInput');if(el)el.focus();},100);
+  }
+})();
+
 </script>
 </body>
 </html>
