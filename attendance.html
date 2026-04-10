@@ -737,17 +737,34 @@ function startRoll(){
   }
 
   var students=getStudentsOfCls(cls);
+
+  // 判斷今天是否為週六
+  var rollDateObj=new Date((_rollDate||document.getElementById('rollDate').value)+'T00:00:00');
+  var isSaturday=rollDateObj.getDay()===6;
+
+  // 社團判斷：
+  // 週一～五：所有成員正常點名（無「未參加」預設）
+  // 週六：所有成員預設空白，可個別標「未參加」（部分學生不參加）
+  var clubDef=(GS.clubs||[]).find(function(c){return c.name===cls;});
+  var isClubCls=!!clubDef;
+
   _rollData=students.map(function(s){
     var key=s.student_id||s.student_name;
     var prev=existing&&existing.records.find(function(r){return r.studentId===key;});
+    // 全部成員，沒有預設「未參加」——週六可由老師自行勾選
     return{
       studentId:key, seat:s.seat_number, name:s.student_name,
       parent1LineId:s.parent1_line_id||'', parent1Name:s.parent1_name||'',
       parent2LineId:s.parent2_line_id||'', parent2Name:s.parent2_name||'',
-      status:prev?prev.status:'', time:prev?prev.time:'', note:prev?prev.note:'',
-      notified:prev?prev.notified:false
+      status:prev?prev.status:'',
+      time:prev?prev.time:'', note:prev?prev.note:'',
+      notified:prev?prev.notified:false,
+      isNonMember:false
     };
   });
+
+  // 依座號排序
+  _rollData.sort(function(a,b){ return (a.seat||'').localeCompare(b.seat||''); });
 
   document.getElementById('rollWrap').style.display='block';
   document.getElementById('allPresentBtn').style.display='inline-flex';
@@ -807,7 +824,7 @@ function updateSummary(){
   _rollData.forEach(function(r){cnt[r.status||'none']=(cnt[r.status||'none']||0)+1;});
   document.getElementById('rollSummary').innerHTML=
     '出席 <strong>'+cnt.present+'</strong> · '
-    +'曠課 <strong style="color:var(--red)">'+cnt.absent+'</strong> · '
+    +'缺席 <strong style="color:var(--red)">'+cnt.absent+'</strong> · '
     +'遲到 <strong style="color:var(--orange)">'+cnt.late+'</strong> · '
     +'病假 '+cnt.sick+' · 事假 '+cnt.affair+' · 補習 '+cnt.cram+' · 未標記 '+cnt.none;
 }
