@@ -1020,15 +1020,10 @@ function renderClubCandidates(){
   var html=allStudents.map(function(s){
     var key=s.student_id||s.student_name;
     var isMember=memberIds.indexOf(key)>=0;
-    return'<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--gray100);font-size:13px;'+(isMember?'background:var(--purple-bg)':'')+'">'
-      +'<input type="checkbox" '+(isMember?'checked':'')+' onchange="toggleClubMember(\''+key+'\')" style="width:auto;accent-color:var(--purple);flex-shrink:0">'
-      +'<span class="tag" style="min-width:36px;text-align:center">'+s.class_name+'</span>'
-      +'<span style="min-width:28px;color:var(--gray600)">'+s.seat_number+'</span>'
-      +'<strong style="min-width:60px">'+s.student_name+'</strong>'
-      +'<span class="tag">'+s.gender+'</span>'
-      +(s.parent1_name?'<span style="font-size:11px;color:var(--gray600)">'+s.parent1_name+'</span>':'')
-      +(isMember?'<span style="margin-left:auto;font-size:11px;color:var(--purple)">✓ 成員</span>':'')
-    +'</div>';
+        var remarkHtml=(s.remarks&&s.remarks.length)?s.remarks.map(function(r){
+      return'<span style="background:var(--blue-bg);color:var(--blue);border-radius:10px;padding:1px 7px;font-size:11px">'+r+'</span>';
+    }).join(' '):'';
+    return'<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--gray100);font-size:13px;'+(isMember?'background:var(--purple-bg)':'')+'">'      +'<input type="checkbox" '+(isMember?'checked':'')+' onchange="toggleClubMember(\''+key+'\')" style="width:auto;accent-color:var(--purple);flex-shrink:0">'      +'<span class="tag" style="min-width:36px;text-align:center">'+s.class_name+'</span>'      +'<span style="min-width:26px;color:var(--gray600);font-size:12px">'+s.seat_number+'</span>'      +'<strong style="min-width:60px">'+s.student_name+'</strong>'      +'<span class="tag" style="min-width:24px;text-align:center">'+s.gender+'</span>'      +(remarkHtml?'<span style="flex:1">'+remarkHtml+'</span>':'<span style="flex:1"></span>')      +(s.student_line_id?'<span style="font-size:11px;color:var(--green)">學✓</span>':'')      +(s.parent1_name?'<span style="font-size:11px;color:var(--gray600)">'+s.parent1_name+(s.parent1_line_id?' ✓':'')+'</span>':'')      +(isMember?'<span style="font-size:11px;color:var(--purple);white-space:nowrap">✓ 成員</span>':'')    +'</div>';
   }).join('')||'<div style="padding:20px;text-align:center;color:var(--gray400)">無符合學生</div>';
   document.getElementById('clubCandidates').innerHTML=html;
 }
@@ -1450,7 +1445,8 @@ function dlCSV(rows,name){
 // ══════════════════════════════════════════════════════
 var TEACHER_PASSWORD = 'teacher2026';
 var SESSION_KEY = 'eduSys_auth';
-var AUTO_LOGOUT_MS = 5 * 60 * 1000; // 5分鐘
+var LAST_ACTIVE_KEY = 'eduSys_lastActive';
+var AUTO_LOGOUT_MS = 30 * 60 * 1000; // 30分鐘（跨頁面共享最後活動時間）
 var _logoutTimer = null;
 var _logoutCountdown = null;
 
@@ -1487,24 +1483,25 @@ function showLogoutBtn(){
 
 function startAutoLogout(){
   clearAutoLogout();
-  var remaining = AUTO_LOGOUT_MS;
-  // 倒數提示（最後60秒出現）
-  _logoutTimer = setTimeout(function(){
-    forceLogout();
-  }, AUTO_LOGOUT_MS);
-  // 活動監聽重置計時
+  // 記錄初始活動時間
+  localStorage.setItem(LAST_ACTIVE_KEY, Date.now().toString());
+  // 各種互動都更新最後活動時間
   ['click','keydown','mousemove','touchstart','scroll'].forEach(function(evt){
     document.addEventListener(evt, resetAutoLogout, {passive:true});
   });
+  // 每30秒檢查一次（跨頁面：用 localStorage 判斷，而非各自計時器）
+  _logoutTimer = setInterval(function(){
+    var last=parseInt(localStorage.getItem(LAST_ACTIVE_KEY)||'0');
+    if(Date.now()-last > AUTO_LOGOUT_MS){ forceLogout(); }
+  }, 30000);
 }
 
 function resetAutoLogout(){
-  clearTimeout(_logoutTimer);
-  _logoutTimer = setTimeout(function(){ forceLogout(); }, AUTO_LOGOUT_MS);
+  localStorage.setItem(LAST_ACTIVE_KEY, Date.now().toString());
 }
 
 function clearAutoLogout(){
-  clearTimeout(_logoutTimer);
+  clearInterval(_logoutTimer);
   ['click','keydown','mousemove','touchstart','scroll'].forEach(function(evt){
     document.removeEventListener(evt, resetAutoLogout);
   });
@@ -1756,6 +1753,7 @@ function ttOnClsChange(){
 function ttAddSlot(){
   if(!GS.timetable) GS.timetable=[];
   var cls = document.getElementById('ttClsSel').value;
+  var editId=document.getElementById('ttClsSel').dataset.editId||'';
   var day = parseInt(document.getElementById('ttDaySel').value);
   var period = document.getElementById('ttPeriodSel').value;
   var subject = document.getElementById('ttSubject').value.trim() || (GS.cfg&&GS.cfg.subject) || '';
@@ -1767,14 +1765,21 @@ function ttAddSlot(){
   if(dateFrom && dateTo && dateFrom > dateTo){alert('起始日不能晚於結束日');return;}
   // 固定課：同班同星期同節次只保留一筆；日期範圍課：允許多筆（不同日期區間）
   var isFixed = !dateFrom && !dateTo;
+  // 編輯模式：先刪舊紀錄
+  if(editId){
+    GS.timetable=GS.timetable.filter(function(s){return s.id!==editId;});
+    delete document.getElementById('ttClsSel').dataset.editId;
+    var addBtn=document.querySelector('[onclick="ttAddSlot()"]');
+    if(addBtn){addBtn.textContent='＋ 新增節次';addBtn.style.background='';}
+  }
   if(isFixed){
-    var dup = GS.timetable.findIndex(function(s){
+    var dup = !editId && GS.timetable.findIndex(function(s){
       return s.cls===cls && s.day===day && s.period===period && !s.dateFrom && !s.dateTo;
     });
-    var slot = {id:'tt_'+Date.now(), cls:cls, day:day, period:period, subject:subject, teacher:teacher};
+    var slot = {id:editId||('tt_'+Date.now()), cls:cls, day:day, period:period, subject:subject, teacher:teacher};
     if(dup>=0){ GS.timetable[dup]=slot; } else { GS.timetable.push(slot); }
   } else {
-    var slot = {id:'tt_'+Date.now(), cls:cls, day:day, period:period, subject:subject, teacher:teacher,
+    var slot = {id:editId||('tt_'+Date.now()), cls:cls, day:day, period:period, subject:subject, teacher:teacher,
                 dateFrom:dateFrom||'', dateTo:dateTo||''};
     GS.timetable.push(slot);
   }
@@ -1843,7 +1848,10 @@ function ttRenderTable(){
         +'<td>'+(s.subject||'—')+'</td>'
         +'<td>'+(s.teacher||'—')+'</td>'
         +'<td style="font-size:12px">'+dateStr+'</td>'
-        +'<td><button class="btn btn-sm btn-danger" onclick="ttDeleteSlot(\''+s.id+'\')">刪除</button></td>'
+        +'<td style="display:flex;gap:4px">'
+          +'<button class="btn btn-sm" onclick="ttEditSlot(\''+s.id+'\')" style="padding:4px 10px">修改</button>'
+          +'<button class="btn btn-sm btn-danger" onclick="ttDeleteSlot(\''+s.id+'\')" style="padding:4px 10px">刪除</button>'
+        +'</td>'
       +'</tr>';
     });
     html += '</tbody></table></div>';
@@ -1854,6 +1862,25 @@ function ttRenderTable(){
 function ttDeleteSlot(id){
   GS.timetable = (GS.timetable||[]).filter(function(s){return s.id!==id;});
   save(); ttRenderTable(); ttRenderFilterPills();
+}
+function ttEditSlot(id){
+  var s=(GS.timetable||[]).find(function(x){return x.id===id;}); if(!s)return;
+  // 填入編輯區欄位
+  document.getElementById('ttClsSel').value=s.cls;
+  document.getElementById('ttDaySel').value=s.day;
+  ttFillPeriodSel(document.getElementById('ttPeriodSel'));
+  document.getElementById('ttPeriodSel').value=s.period;
+  document.getElementById('ttSubject').value=s.subject||'';
+  document.getElementById('ttTeacher').value=s.teacher||'';
+  document.getElementById('ttDateFrom').value=s.dateFrom||'';
+  document.getElementById('ttDateTo').value=s.dateTo||'';
+  // 標記目前編輯的 id，儲存時替換
+  document.getElementById('ttClsSel').dataset.editId=id;
+  // 捲動到編輯區
+  document.querySelector('#tab-timetable .card').scrollIntoView({behavior:'smooth'});
+  // 改按鈕文字提示
+  var addBtn=document.querySelector('[onclick="ttAddSlot()"]');
+  if(addBtn){addBtn.textContent='✓ 儲存修改';addBtn.style.background='var(--blue)';}
 }
 
 // ── 自動偵測當下課表（供 attendance.html 使用）──

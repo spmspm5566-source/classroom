@@ -1241,7 +1241,8 @@ function dlCSV(rows,name){
 
 // ── 認證：未登入直接跳回首頁 ──
 var SESSION_KEY='eduSys_auth';
-var AUTO_LOGOUT_MS = 5 * 60 * 1000; // 5分鐘
+var LAST_ACTIVE_KEY='eduSys_lastActive';
+var AUTO_LOGOUT_MS = 30 * 60 * 1000; // 30分鐘（與 index.html 共用 localStorage）
 var _logoutTimer = null;
 
 function doLogout(){
@@ -1253,19 +1254,23 @@ function doLogout(){
 
 function startAutoLogout(){
   clearAutoLogout();
-  _logoutTimer = setTimeout(function(){ forceLogout(); }, AUTO_LOGOUT_MS);
+  localStorage.setItem(LAST_ACTIVE_KEY, Date.now().toString());
   ['click','keydown','mousemove','touchstart','scroll'].forEach(function(evt){
     document.addEventListener(evt, resetAutoLogout, {passive:true});
   });
+  // 每30秒檢查，跨頁面共用最後活動時間
+  _logoutTimer = setInterval(function(){
+    var last=parseInt(localStorage.getItem(LAST_ACTIVE_KEY)||'0');
+    if(Date.now()-last > AUTO_LOGOUT_MS){ forceLogout(); }
+  }, 30000);
 }
 
 function resetAutoLogout(){
-  clearTimeout(_logoutTimer);
-  _logoutTimer = setTimeout(function(){ forceLogout(); }, AUTO_LOGOUT_MS);
+  localStorage.setItem(LAST_ACTIVE_KEY, Date.now().toString());
 }
 
 function clearAutoLogout(){
-  clearTimeout(_logoutTimer);
+  clearInterval(_logoutTimer);
   ['click','keydown','mousemove','touchstart','scroll'].forEach(function(evt){
     document.removeEventListener(evt, resetAutoLogout);
   });
