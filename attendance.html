@@ -388,8 +388,18 @@ function autoDetectSlot(){
   var now = new Date();
   var day = now.getDay();
   var hm  = now.getHours()*60 + now.getMinutes();
+  var todayYMD = now.toISOString().split('T')[0]; // 'YYYY-MM-DD'
 
-  var todaySlots = tt.filter(function(s){return s.day===day;});
+  var todaySlots = tt.filter(function(s){
+    if(s.day!==day) return false;
+    // 有日期範圍：檢查今天是否在範圍內
+    if(s.dateFrom||s.dateTo){
+      var from=s.dateFrom||'0000-01-01';
+      var to=s.dateTo||'9999-12-31';
+      return todayYMD>=from && todayYMD<=to;
+    }
+    return true; // 每週固定：永遠有效
+  });
   if(!todaySlots.length) return;
 
   var best=null, bestDiff=Infinity, isNow=false;
@@ -600,19 +610,30 @@ function onClsChange(){
 }
 
 function onPeriodChange(){
+  var cls=document.getElementById('rollCls').value;
   var date=document.getElementById('rollDate').value;
   var period=document.getElementById('rollPeriod').value;
   if(!cls||!date||!period) return;
 
   // 從日期算星期幾
-  var d=new Date(date);
+  var d=new Date(date+'T00:00:00');
   var day=d.getDay(); // 0=日,1=一...6=六
 
-  // 從課表找對應紀錄
+  // 從課表找對應節次：優先找日期範圍內的，其次找每週固定
   var tt=GS.timetable||[];
-  var slot=tt.find(function(s){
+  var candidates=tt.filter(function(s){
     return s.cls===cls && s.day===day && s.period===period;
   });
+
+  // 先找有日期範圍且包含今天的
+  var slot=candidates.find(function(s){
+    if(!s.dateFrom && !s.dateTo) return false;
+    var from=s.dateFrom?s.dateFrom:'0000-01-01';
+    var to=s.dateTo?s.dateTo:'9999-12-31';
+    return date>=from && date<=to;
+  });
+  // 沒有則用每週固定
+  if(!slot) slot=candidates.find(function(s){return !s.dateFrom&&!s.dateTo;});
 
   var subjectEl=document.getElementById('rollSubject');
   var teacherEl=document.getElementById('rollTeacher');
