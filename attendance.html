@@ -355,8 +355,10 @@ var _rollCls='';var _rollDate='';var _rollPeriod='';var _rollSubject='';var _rol
   document.getElementById('recTo').value=ymd;
   // 填入班級選單
   buildClsSels();
-  // 自動偵測當下課表
+  // 自動偵測當下課表（頁面載入時）
   setTimeout(autoDetectSlot, 200);
+  // 每分鐘重新偵測一次（讓上課前5分鐘的自動帶入能即時觸發）
+  setInterval(autoDetectSlot, 60000);
 })();
 
 // ── 自動偵測當下/即將的課 ──
@@ -414,7 +416,9 @@ function autoDetectSlot(){
       }
     } else if(!isNow && hm<start){
       var diff=start-hm;
-      if(diff<bestDiff){ bestDiff=diff; best=s; }
+      // 上課前5分鐘視為「即將上課」，優先顯示
+      if(diff<=5){ best=s; isNow=true; bestDiff=0; }
+      else if(diff<bestDiff){ bestDiff=diff; best=s; }
     }
   });
 
@@ -602,12 +606,94 @@ function getMyCls(){
 
 function onClsChange(){
   var cls=document.getElementById('rollCls').value;
+  if(!cls){ return; }
+
+  // 嘗試從課表找最近一堂課，自動填入日期、節次、科目、任課老師
+  var filled = tryFillNextSlot(cls);
+
   var date=document.getElementById('rollDate').value;
   buildPeriodSel(cls, date);
-  // 清除科目/老師（等選節次後再帶入）
-  document.getElementById('rollSubject').value='';
-  if(document.getElementById('rollTeacher')) document.getElementById('rollTeacher').value='';
+
+  // 若課表有帶入節次，觸發 onPeriodChange 帶出科目/老師
+  if(filled){
+    onPeriodChange();
+  } else {
+    document.getElementById('rollSubject').value='';
+    if(document.getElementById('rollTeacher')) document.getElementById('rollTeacher').value='';
+  }
 }
+
+// 找今天起最近一堂課（含今天），填入日期、節次
+// 回傳 true 表示有填入
+function tryFillNextSlot(cls){
+  var tt=(GS.timetable||[]).filter(function(s){return s.cls===cls;});
+  if(!tt.length) return false;
+
+  var TT_PERIODS_LOCAL=[
+    {id:'morning',label:'早自習',  start:'07:40',end:'08:15'},
+    {id:'p1',     label:'第1節',   start:'08:25',end:'09:10'},
+    {id:'p2',     label:'第2節',   start:'09:20',end:'10:05'},
+    {id:'p3',     label:'第3節',   start:'10:15',end:'11:00'},
+    {id:'p4',     label:'第4節',   start:'11:10',end:'11:55'},
+    {id:'lunch',  label:'午休',    start:'12:35',end:'13:10'},
+    {id:'p5',     label:'第5節',   start:'13:20',end:'14:05'},
+    {id:'p6',     label:'第6節',   start:'14:15',end:'15:00'},
+    {id:'p7',     label:'第7節',   start:'15:10',end:'15:55'},
+    {id:'p8',     label:'第8節',   start:'16:05',end:'16:50'},
+    {id:'p9',     label:'第9節',   start:'16:50',end:'17:30'},
+    {id:'dinner', label:'晚餐',    start:'17:30',end:'18:30'},
+    {id:'sleep',  label:'晚睡',    start:'18:00',end:'18:30'},
+    {id:'eve1',   label:'晚自習1', start:'18:35',end:'19:30'},
+    {id:'eve2',   label:'晚自習2', start:'19:40',end:'20:30'}
+  ];
+  function getPeriod(id){ return TT_PERIODS_LOCAL.find(function(p){return p.id===id;}); }
+  function toMin(str){ if(!str)return 0; var p=str.split(':');return parseInt(p[0])*60+parseInt(p[1]); }
+  function ymd(d){ return d.toISOString().split('T')[0]; }
+
+  var now=new Date();
+  var hm=now.getHours()*60+now.getMinutes();
+
+  // 搜尋今天到14天內，找最近符合的課
+  for(var offset=0; offset<14; offset++){
+    var d=new Date(now);
+    d.setDate(d.getDate()+offset);
+    var day=d.getDay();
+    var dateStr=ymd(d);
+
+    var daySlots=tt.filter(function(s){
+      if(s.day!==day) return false;
+      if(s.dateFrom||s.dateTo){
+        var from=s.dateFrom||'0000-01-01';
+        var to=s.dateTo||'9999-12-31';
+        return dateStr>=from && dateStr<=to;
+      }
+      return true;
+    });
+
+    // 排序：依節次時間
+    daySlots.sort(function(a,b){
+      var pa=TT_PERIODS_LOCAL.findIndex(function(p){return p.id===a.period;}),
+          pb=TT_PERIODS_LOCAL.findIndex(function(p){return p.id===b.period;});
+      return pa-pb;
+    });
+
+    for(var i=0;i<daySlots.length;i++){
+      var s=daySlots[i];
+      var p=getPeriod(s.period); if(!p) continue;
+      var start=toMin(p.start);
+      // 今天：只取尚未結束的課（允許提前5分鐘）
+      if(offset===0 && toMin(p.end)<hm-1) continue;
+      // 找到了，填入
+      document.getElementById('rollDate').value=dateStr;
+      document.getElementById('rollPeriod'); // 節次選單在 buildPeriodSel 後才有選項
+      // 先記錄期望 period，buildPeriodSel 後再設定
+      _pendingPeriod=s.period;
+      return true;
+    }
+  }
+  return false;
+}
+var _pendingPeriod='';
 
 function onPeriodChange(){
   var cls=document.getElementById('rollCls').value;
@@ -661,6 +747,11 @@ function buildPeriodSel(cls, dateStr){
   periods.forEach(function(p){
     var o=document.createElement('option');o.value=p.id;o.textContent=p.label;sel.appendChild(o);
   });
+  // 若有待設定的節次（來自 tryFillNextSlot），套用後清除
+  if(_pendingPeriod){
+    sel.value=_pendingPeriod;
+    _pendingPeriod='';
+  }
 }
 
 function getPeriods(cls, dateStr){
@@ -780,6 +871,11 @@ function startRoll(){
     return (String(a.seat||'').padStart(4,'0')).localeCompare(String(b.seat||'').padStart(4,'0'));
   });
 
+  // 若為社團班，加入菁英班序號（排序後的 1-based index）
+  if(isClubCls){
+    _rollData.forEach(function(r,i){ r.clubSeq=i+1; });
+  }
+
   document.getElementById('rollWrap').style.display='block';
   document.getElementById('allPresentBtn').style.display='inline-flex';
   renderRollList();
@@ -803,10 +899,17 @@ function renderRollList(){
       extra+='<input class="note-input" type="text" value="'+(r.note||'')+'" onchange="setNote('+i+',this.value)" placeholder="備註（選填）"/>';
     }
 
-    return'<div class="att-row '+rowCls+'" id="attrow'+i+'">'
-      +'<div class="att-seat">'+r.seat+'</div>'
-      +'<div class="att-name">'+r.name
-        +(r.autoNaFrom?'<span style="font-size:10px;color:var(--gray400);margin-left:4px" title="從'+r.autoNaFrom+'起自動帶入，點擊解除" onclick="clearAutoNaRow('+i+')" style="cursor:pointer">🔁自動</span>':'')
+    // 社團班顯示：序號 / 原班 / 原班座號 / 姓名
+    var seatInfo = r.clubSeq
+      ? '<span style="color:var(--gray400);font-size:11px;min-width:20px">'+r.clubSeq+'</span>'
+        +'<span style="font-size:11px;color:var(--blue);min-width:32px;margin-left:4px">'+r.origClass+'</span>'
+        +'<span style="font-size:12px;color:var(--gray600);min-width:26px;margin-left:2px">'+r.seat+'</span>'
+      : '<div class="att-seat">'+r.seat+'</div>';
+
+    return'<div class="att-row '+rowCls+'" id="attrow'+i+'" style="'+(r.clubSeq?'display:flex;align-items:center;':'')+'">'
+      +seatInfo
+      +'<div class="att-name" style="margin-left:'+(r.clubSeq?'6px':'0')+'">'+r.name
+        +(r.autoNaFrom?'<span style="font-size:10px;color:var(--gray400);margin-left:4px;cursor:pointer" title="從'+r.autoNaFrom+'起自動帶入，點擊解除" onclick="clearAutoNaRow('+i+')">🔁自動</span>':'')
       +'</div>'
       +'<div class="status-btns">'+btns+'</div>'
       +(extra?'<div style="display:flex;gap:4px;width:100%;margin-top:4px">'+extra+'</div>':'')
@@ -885,7 +988,9 @@ function updateSummary(){
     '出席 <strong>'+cnt.present+'</strong> · '
     +'缺席 <strong style="color:var(--red)">'+cnt.absent+'</strong> · '
     +'遲到 <strong style="color:var(--orange)">'+cnt.late+'</strong> · '
-    +'病假 '+cnt.sick+' · 事假 '+cnt.affair+' · 補習 '+cnt.cram+' · 未標記 '+cnt.none;
+    +'病假 '+cnt.sick+' · 事假 '+cnt.affair+' · 補習 '+cnt.cram
+    +(cnt.na?' · 未參加 <strong style="color:var(--gray600)">'+cnt.na+'</strong>':'')
+    +' · 未標記 '+cnt.none;
 }
 
 function saveRoll(){
