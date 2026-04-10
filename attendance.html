@@ -751,20 +751,34 @@ function startRoll(){
   _rollData=students.map(function(s){
     var key=s.student_id||s.student_name;
     var prev=existing&&existing.records.find(function(r){return r.studentId===key;});
-    // 全部成員，沒有預設「未參加」——週六可由老師自行勾選
+
+    // 自動未參加：檢查該學生本學期是否有「從某日起自動未參加」設定
+    var autoNa=clubDef&&clubDef.autoNa&&clubDef.autoNa[key];
+    // autoNa = {from:'YYYY-MM-DD', reason:'na'|'cram'} 表示從 from 日起自動設為該狀態
+    var autoStatus='';
+    if(autoNa && _rollDate >= autoNa.from){
+      autoStatus=autoNa.reason||'na';
+    }
+
     return{
       studentId:key, seat:s.seat_number, name:s.student_name,
+      origClass:s.class_name||'',  // 原班（菁英班排序用）
       parent1LineId:s.parent1_line_id||'', parent1Name:s.parent1_name||'',
       parent2LineId:s.parent2_line_id||'', parent2Name:s.parent2_name||'',
-      status:prev?prev.status:'',
+      status:prev?prev.status:(autoStatus||''),
       time:prev?prev.time:'', note:prev?prev.note:'',
       notified:prev?prev.notified:false,
-      isNonMember:false
+      isNonMember:false,
+      autoNaFrom:autoNa?autoNa.from:''  // 記錄供顯示用
     };
   });
 
-  // 依座號排序
-  _rollData.sort(function(a,b){ return (a.seat||'').localeCompare(b.seat||''); });
+  // 依原班+座號遞增排序（菁英班跨班成員）
+  _rollData.sort(function(a,b){
+    var ca=a.origClass||a.studentId||'', cb=b.origClass||b.studentId||'';
+    if(ca!==cb) return ca.localeCompare(cb);
+    return (String(a.seat||'').padStart(4,'0')).localeCompare(String(b.seat||'').padStart(4,'0'));
+  });
 
   document.getElementById('rollWrap').style.display='block';
   document.getElementById('allPresentBtn').style.display='inline-flex';
@@ -791,7 +805,9 @@ function renderRollList(){
 
     return'<div class="att-row '+rowCls+'" id="attrow'+i+'">'
       +'<div class="att-seat">'+r.seat+'</div>'
-      +'<div class="att-name">'+r.name+'</div>'
+      +'<div class="att-name">'+r.name
+        +(r.autoNaFrom?'<span style="font-size:10px;color:var(--gray400);margin-left:4px" title="從'+r.autoNaFrom+'起自動帶入，點擊解除" onclick="clearAutoNaRow('+i+')" style="cursor:pointer">🔁自動</span>':'')
+      +'</div>'
       +'<div class="status-btns">'+btns+'</div>'
       +(extra?'<div style="display:flex;gap:4px;width:100%;margin-top:4px">'+extra+'</div>':'')
     +'</div>';
@@ -805,16 +821,59 @@ function setStatus(i,status){
   if(status==='present'||status==='na'){
     _rollData[i].time='';_rollData[i].note='';
   } else if((status==='late'||status==='early')&&!_rollData[i].time){
-    // 自動帶入目前時間
     var now=new Date();
     _rollData[i].time=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
   }
   renderRollList();
   var el=document.getElementById('attrow'+i);
   if(el)el.scrollIntoView({block:'nearest'});
+
+  // 需求1&2：社團點名中，標「未參加」或「補習」時，詢問是否後續自動帶入
+  var clubDef=(GS.clubs||[]).find(function(c){return c.name===_rollCls;});
+  if(clubDef && (status==='na'||status==='cram')){
+    // 判斷是週六或三年級晚間課程
+    var rollDateObj=new Date(_rollDate+'T00:00:00');
+    var isSat=rollDateObj.getDay()===6;
+    var isEveningPeriod=['p9','dinner','sleep','eve1','eve2'].indexOf(_rollPeriod)>=0;
+    if(isSat||isEveningPeriod){
+      var label=status==='na'?'未參加':'補習';
+      var r=_rollData[i];
+      // 只在尚未設定自動、或想更改時才詢問
+      if(!r.autoNaFrom){
+        if(confirm('【'+r.name+'】後續本學期的同類課程要自動設為「'+label+'」嗎？\n（下次點名時自動帶入，如需更改請手動調整）')){
+          setAutoNa(r.studentId, status, _rollDate);
+          r.autoNaFrom=_rollDate;
+        }
+      }
+    }
+  }
+}
+
+function setAutoNa(studentId, reason, fromDate){
+  var clubDef=(GS.clubs||[]).find(function(c){return c.name===_rollCls;});
+  if(!clubDef) return;
+  if(!clubDef.autoNa) clubDef.autoNa={};
+  clubDef.autoNa[studentId]={from:fromDate, reason:reason};
+  save();
+}
+
+function clearAutoNa(studentId){
+  var clubDef=(GS.clubs||[]).find(function(c){return c.name===_rollCls;});
+  if(!clubDef||!clubDef.autoNa) return;
+  delete clubDef.autoNa[studentId];
+  save();
 }
 function setTime(i,v){_rollData[i].time=v;}
 function setNote(i,v){_rollData[i].note=v;}
+function clearAutoNaRow(i){
+  var r=_rollData[i];
+  if(!r.autoNaFrom) return;
+  if(confirm('解除【'+r.name+'】的自動帶入設定？之後點名需手動標記。')){
+    clearAutoNa(r.studentId);
+    r.autoNaFrom='';
+    renderRollList();
+  }
+}
 function markAll(status){_rollData.forEach(function(r){if(r.status!=='na')r.status=status;});renderRollList();}
 function markAllPresent(){markAll('present');}
 function clearAll(){_rollData.forEach(function(r){r.status='';});renderRollList();}

@@ -262,35 +262,35 @@ input[type=checkbox]{width:auto;accent-color:var(--black)}
   <!-- 社團成員管理 -->
   <div id="clubMemberPanel" style="display:none">
     <div class="card">
-      <div class="card-title">👥 <span id="clubMemberTitle">社團成員</span></div>
-      <div class="hint">從學生名單中選取成員，可跨班選擇，成員資料保留原班標記。</div>
+      <div class="card-title">👥 <span id="clubMemberTitle">社團成員</span>
+        <span id="clubMemberCount" style="font-size:13px;font-weight:400;color:var(--gray600);margin-left:8px">0 人</span>
+      </div>
+      <div class="hint">勾選即加入社團，取消勾選即移除。可依班級篩選或搜尋姓名。</div>
 
       <!-- 篩選 -->
-      <div class="row" style="margin-bottom:10px;gap:8px">
+      <div class="row" style="margin-bottom:10px;gap:8px;align-items:flex-end">
         <div class="col" style="max-width:120px">
           <span class="lbl">篩選班級</span>
           <select id="clubSrcCls" onchange="renderClubCandidates()"><option value="">全部</option></select>
         </div>
         <div class="col">
-          <span class="lbl">搜尋</span>
+          <span class="lbl">搜尋姓名/座號</span>
           <input id="clubSearch" placeholder="姓名/座號…" oninput="renderClubCandidates()"/>
         </div>
-        <div class="col" style="max-width:130px;display:flex;align-items:flex-end">
-          <button class="btn btn-sm btn-p" onclick="saveClubMembers()" style="width:100%">儲存成員</button>
+        <div class="col" style="max-width:110px">
+          <span class="lbl">顯示</span>
+          <select id="clubShowFilter" onchange="renderClubCandidates()">
+            <option value="all">全部學生</option>
+            <option value="members">僅成員</option>
+            <option value="non">僅非成員</option>
+          </select>
+        </div>
+        <div class="col" style="max-width:120px;display:flex;align-items:flex-end">
+          <button class="btn btn-sm btn-p" onclick="saveClubMembers()" style="width:100%">✓ 儲存成員</button>
         </div>
       </div>
 
-      <div id="clubCandidates" style="max-height:320px;overflow-y:auto"></div>
-    </div>
-
-    <div class="card">
-      <div class="card-title">目前成員 (<span id="clubMemberCount">0</span> 人)</div>
-      <div style="overflow-x:auto">
-        <table>
-          <thead><tr><th>原班</th><th>座號</th><th>姓名</th><th>性別</th><th>家長1</th><th>家長2</th><th></th></tr></thead>
-          <tbody id="clubMemberTable"></tbody>
-        </table>
-      </div>
+      <div id="clubCandidates" style="max-height:480px;overflow-y:auto;border:1px solid var(--gray200);border-radius:var(--radius-sm)"></div>
     </div>
   </div>
 </div>
@@ -909,7 +909,7 @@ function renderClubs(){
   }).join('')||'<div style="color:var(--gray400);font-size:13px;padding:10px">尚無社團，請建立</div>';
   document.getElementById('clubList').innerHTML=html;
   document.getElementById('clubMemberPanel').style.display=_curClubId?'block':'none';
-  if(_curClubId)renderClubMemberTable();
+  if(_curClubId)renderClubCandidates();
 }
 function addClub(){
   var name=document.getElementById('newClubName').value.trim();
@@ -936,32 +936,47 @@ function editClubMembers(id){
   document.getElementById('clubMemberTitle').textContent=c.name+' — 成員管理';
   document.getElementById('clubMemberPanel').style.display='block';
   renderClubCandidates();
-  renderClubMemberTable();
+  renderClubCandidates();
 }
 function renderClubCandidates(){
   var id=_curClubId; var c=GS.clubs.find(function(x){return x.id===id;}); if(!c)return;
   var cls=document.getElementById('clubSrcCls').value;
   var q=(document.getElementById('clubSearch').value||'').toLowerCase();
-  // Show non-club students only
-  var clubNames=(GS.clubs||[]).map(function(x){return x.name;});
-  var candidates=GS.students.filter(function(s){
-    if(s.status==='graduated')return false;
-    if(clubNames.indexOf(s.class_name)>=0)return false; // already a club class
-    if(cls&&s.class_name!==cls)return false;
-    if(q&&!(s.student_name||'').toLowerCase().includes(q)&&!(s.seat_number||'').includes(q))return false;
-    return true;
-  });
+  var showFilter=document.getElementById('clubShowFilter')?document.getElementById('clubShowFilter').value:'all';
   var memberIds=c.memberIds||[];
-  var html=candidates.map(function(s){
-    var checked=memberIds.indexOf(s.student_id||s.student_name)>=0;
+
+  // 所有在校生（排除社團本身的 class_name）
+  var clubNames=(GS.clubs||[]).map(function(x){return x.name;});
+  var allStudents=GS.students.filter(function(s){
+    if(s.status==='graduated') return false;
+    if(clubNames.indexOf(s.class_name)>=0) return false;
+    if(cls&&s.class_name!==cls) return false;
+    if(q&&!(s.student_name||'').toLowerCase().includes(q)&&!(s.seat_number||'').includes(q)) return false;
+    var isMember=memberIds.indexOf(s.student_id||s.student_name)>=0;
+    if(showFilter==='members'&&!isMember) return false;
+    if(showFilter==='non'&&isMember) return false;
+    return true;
+  }).sort(function(a,b){
+    if(a.class_name!==b.class_name) return a.class_name.localeCompare(b.class_name);
+    return (String(a.seat_number||'').padStart(4,'0')).localeCompare(String(b.seat_number||'').padStart(4,'0'));
+  });
+
+  var memberCount=memberIds.length;
+  document.getElementById('clubMemberCount').textContent=memberCount+' 人已加入';
+
+  var html=allStudents.map(function(s){
     var key=s.student_id||s.student_name;
-    return'<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid var(--gray100);font-size:13px">'
-      +'<input type="checkbox" '+(checked?'checked':'')+' onchange="toggleClubMember(\''+key+'\')" style="width:auto;accent-color:var(--purple)">'
-      +'<span class="tag">'+s.class_name+'</span>'
-      +'<span>'+s.seat_number+' <strong>'+s.student_name+'</strong></span>'
+    var isMember=memberIds.indexOf(key)>=0;
+    return'<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--gray100);font-size:13px;'+(isMember?'background:var(--purple-bg)':'')+'">'
+      +'<input type="checkbox" '+(isMember?'checked':'')+' onchange="toggleClubMember(\''+key+'\')" style="width:auto;accent-color:var(--purple);flex-shrink:0">'
+      +'<span class="tag" style="min-width:36px;text-align:center">'+s.class_name+'</span>'
+      +'<span style="min-width:28px;color:var(--gray600)">'+s.seat_number+'</span>'
+      +'<strong style="min-width:60px">'+s.student_name+'</strong>'
       +'<span class="tag">'+s.gender+'</span>'
+      +(s.parent1_name?'<span style="font-size:11px;color:var(--gray600)">'+s.parent1_name+'</span>':'')
+      +(isMember?'<span style="margin-left:auto;font-size:11px;color:var(--purple)">✓ 成員</span>':'')
     +'</div>';
-  }).join('')||'<div style="padding:16px;text-align:center;color:var(--gray400)">無符合學生</div>';
+  }).join('')||'<div style="padding:20px;text-align:center;color:var(--gray400)">無符合學生</div>';
   document.getElementById('clubCandidates').innerHTML=html;
 }
 function toggleClubMember(key){
@@ -969,12 +984,12 @@ function toggleClubMember(key){
   if(!c.memberIds)c.memberIds=[];
   var idx=c.memberIds.indexOf(key);
   if(idx>=0)c.memberIds.splice(idx,1); else c.memberIds.push(key);
-  save();renderClubMemberTable();
+  save();renderClubCandidates();
 }
 function saveClubMembers(){
   save();alert('✓ 成員已儲存');renderClubs();
 }
-function renderClubMemberTable(){
+function renderClubCandidates(){
   var c=GS.clubs.find(function(x){return x.id===_curClubId;}); if(!c)return;
   var memberIds=c.memberIds||[];
   document.getElementById('clubMemberCount').textContent=memberIds.length;
