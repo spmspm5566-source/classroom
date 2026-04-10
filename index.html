@@ -203,9 +203,10 @@ input[type=checkbox]{width:auto;accent-color:var(--black)}
     <div class="hint">
       <strong>CSV 欄位格式（第一行為標題）：</strong><br>
       <code style="background:var(--gray100);padding:2px 6px;border-radius:4px;font-size:11px;word-break:break-all">
-        student_id, class_name, seat_number, student_name, gender, student_line_id, parent1_line_id, parent1_name, parent1_relation, parent2_line_id, parent2_name, parent2_relation
+        student_id, class_name, seat_number, student_name, gender, student_line_id, parent1_line_id, parent1_name, parent1_relation, parent2_line_id, parent2_name, parent2_relation, remarks
       </code><br>
-      例：<code style="background:var(--gray100);padding:2px 6px;border-radius:4px;font-size:11px">S001,304,06,王小明,男,Ustu,Umom,王媽媽,媽媽,Udad,王爸爸,爸爸</code>
+      例：<code style="background:var(--gray100);padding:2px 6px;border-radius:4px;font-size:11px">S001,304,06,王小明,男,Ustu,Umom,王媽媽,媽媽,Udad,王爸爸,爸爸,班長；數學小老師</code><br>
+      <span style="font-size:11px;color:var(--gray600)">備註欄多個項目請用「；」（全形分號）分隔</span>
     </div>
     <div class="import-zone" onclick="document.getElementById('csvFi').click()"
       ondragover="event.preventDefault();this.style.borderColor='#1a1a1a'"
@@ -231,6 +232,7 @@ input[type=checkbox]{width:auto;accent-color:var(--black)}
         <thead><tr>
           <th>班級</th><th>座號</th><th>姓名</th><th>性別</th>
           <th>學生LINE</th><th>家長1</th><th>稱謂</th><th>家長2</th><th>稱謂</th>
+          <th>備註</th>
           <th style="width:80px"></th>
         </tr></thead>
         <tbody id="stuBody"></tbody>
@@ -607,6 +609,17 @@ input[type=checkbox]{width:auto;accent-color:var(--black)}
       </select>
     </div>
   </div>
+  <div class="sep"></div>
+  <div style="font-weight:600;font-size:13px;color:var(--gray800);margin-bottom:10px">📝 備註</div>
+  <div style="margin-bottom:14px">
+    <div id="remarkTags" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px"></div>
+    <div class="row" style="gap:6px;align-items:center">
+      <input id="f-remarkInput" placeholder="輸入備註後按 Enter 或點＋新增（如：班長、管樂成員、心臟病）" style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();addRemark();}"/>
+      <button class="btn btn-sm" onclick="addRemark()" style="white-space:nowrap">＋ 新增</button>
+    </div>
+    <input type="hidden" id="f-remarks" value=""/>
+    <div style="font-size:11px;color:var(--gray400);margin-top:6px">點擊標籤可刪除 · 可新增多個備註</div>
+  </div>
   <div class="row" style="gap:8px">
     <button class="btn btn-p" onclick="saveStu()" style="flex:1;padding:10px">儲存</button>
     <button class="btn" onclick="closeStuModal()">取消</button>
@@ -750,6 +763,11 @@ function renderStuTable(){
       +'<td><span class="tag">'+(s.parent1_relation||'--')+'</span></td>'
       +'<td style="font-size:11px;color:'+(s.parent2_line_id?'var(--green)':'var(--gray400)')+'">'+(s.parent2_line_id?'✓ '+s.parent2_name:'--')+'</td>'
       +'<td><span class="tag">'+(s.parent2_relation||'--')+'</span></td>'
+      +'<td style="font-size:11px;max-width:140px">'
+        +((s.remarks&&s.remarks.length)?s.remarks.map(function(r){
+            return'<span style="display:inline-block;background:var(--blue-bg);color:var(--blue);border-radius:10px;padding:1px 7px;margin:1px;font-size:11px">'+r+'</span>';
+          }).join(''):'<span style="color:var(--gray400)">--</span>')
+      +'</td>'
       +'<td><div style="display:flex;gap:4px">'
         +'<button class="btn btn-sm" onclick="openEditStu('+idx+')" style="padding:3px 8px">編輯</button>'
         +'<button class="btn btn-sm btn-danger" onclick="delStu('+idx+')" style="padding:3px 8px">刪</button>'
@@ -757,7 +775,7 @@ function renderStuTable(){
     +'</tr>';
   });
   document.getElementById('stuBody').innerHTML=html.join('')||
-    '<tr><td colspan="10" style="text-align:center;padding:20px;color:var(--gray400)">尚無學生，請匯入 CSV 或手動新增</td></tr>';
+    '<tr><td colspan="11" style="text-align:center;padding:20px;color:var(--gray400)">尚無學生，請匯入 CSV 或手動新增</td></tr>';
 }
 
 // ══════════════════════════════════════════════════════
@@ -779,6 +797,7 @@ function importCSV(f){
         student_name:p[3]||'',gender:p[4]||'',student_line_id:p[5]||'',
         parent1_line_id:p[6]||'',parent1_name:p[7]||'',parent1_relation:p[8]||'',
         parent2_line_id:p[9]||'',parent2_name:p[10]||'',parent2_relation:p[11]||'',
+        remarks:p[12]?p[12].split('；').map(function(r){return r.trim();}).filter(Boolean):[],
         status:'active'
       };
       var dup=GS.students.findIndex(function(s){return s.student_id&&s.student_id===stu.student_id;});
@@ -828,13 +847,45 @@ function openEditStu(i){
   document.getElementById('f-p2line').value=s.parent2_line_id||'';
   document.getElementById('f-p2name').value=s.parent2_name||'';
   document.getElementById('f-p2rel').value=s.parent2_relation||'';
+  loadRemarks(s.remarks||[]);
   document.getElementById('stuModal').style.display='flex';
 }
 function clearStuForm(){
-  ['f-id','f-cls','f-seat','f-name','f-sline','f-p1line','f-p1name','f-p2line','f-p2name'].forEach(function(id){document.getElementById(id).value='';});
+  ['f-id','f-cls','f-seat','f-name','f-sline','f-p1line','f-p1name','f-p2line','f-p2name','f-remarkInput'].forEach(function(id){document.getElementById(id).value='';});
   document.getElementById('f-gender').value='男';
   document.getElementById('f-p1rel').value='媽媽';
   document.getElementById('f-p2rel').value='';
+  loadRemarks([]);
+}
+// ── 備註標籤管理 ──
+function loadRemarks(arr){
+  document.getElementById('f-remarks').value=JSON.stringify(arr||[]);
+  renderRemarkTags(arr||[]);
+}
+function getRemarks(){
+  try{return JSON.parse(document.getElementById('f-remarks').value||'[]');}catch(e){return[];}
+}
+function renderRemarkTags(arr){
+  document.getElementById('remarkTags').innerHTML=(arr||[]).map(function(t,i){
+    return'<span style="display:inline-flex;align-items:center;gap:4px;background:var(--blue-bg);color:var(--blue);'
+      +'border:1px solid #c0d4f8;border-radius:20px;padding:3px 10px;font-size:12px;cursor:pointer" '
+      +'title="點擊刪除" onclick="removeRemark('+i+')">'
+      +t+' ✕</span>';
+  }).join('');
+}
+function addRemark(){
+  var inp=document.getElementById('f-remarkInput');
+  var val=inp.value.trim();
+  if(!val) return;
+  var arr=getRemarks();
+  if(arr.indexOf(val)<0) arr.push(val);
+  inp.value='';
+  loadRemarks(arr);
+}
+function removeRemark(i){
+  var arr=getRemarks();
+  arr.splice(i,1);
+  loadRemarks(arr);
 }
 function saveStu(){
   var stu={
@@ -850,6 +901,7 @@ function saveStu(){
     parent2_line_id:document.getElementById('f-p2line').value.trim(),
     parent2_name:document.getElementById('f-p2name').value.trim(),
     parent2_relation:document.getElementById('f-p2rel').value,
+    remarks:getRemarks(),
     status:'active'
   };
   if(!stu.student_name){alert('請填入學生姓名');return;}
@@ -873,11 +925,12 @@ function closeStuModal(){document.getElementById('stuModal').style.display='none
 function exportCSV(){
   var rows=[['student_id','class_name','seat_number','student_name','gender',
     'student_line_id','parent1_line_id','parent1_name','parent1_relation',
-    'parent2_line_id','parent2_name','parent2_relation']];
+    'parent2_line_id','parent2_name','parent2_relation','remarks']];
   GS.students.filter(function(s){return s.status!=='graduated';}).forEach(function(s){
     rows.push([s.student_id,s.class_name,s.seat_number,s.student_name,s.gender,
       s.student_line_id,s.parent1_line_id,s.parent1_name,s.parent1_relation,
-      s.parent2_line_id,s.parent2_name,s.parent2_relation]);
+      s.parent2_line_id,s.parent2_name,s.parent2_relation,
+      (s.remarks&&s.remarks.length?s.remarks.join('；'):'')]);
   });
   dlCSV(rows,'學生名單_'+GS.curYear+'學年_'+new Date().toLocaleDateString('zh-TW').replace(/\//g,'-'));
 }
@@ -989,26 +1042,7 @@ function toggleClubMember(key){
 function saveClubMembers(){
   save();alert('✓ 成員已儲存');renderClubs();
 }
-function renderClubCandidates(){
-  var c=GS.clubs.find(function(x){return x.id===_curClubId;}); if(!c)return;
-  var memberIds=c.memberIds||[];
-  document.getElementById('clubMemberCount').textContent=memberIds.length;
-  var members=GS.students.filter(function(s){
-    return memberIds.indexOf(s.student_id||s.student_name)>=0;
-  });
-  var html=members.map(function(s){
-    var key=s.student_id||s.student_name;
-    return'<tr>'
-      +'<td><span class="badge bg">'+s.class_name+'</span></td>'
-      +'<td>'+s.seat_number+'</td><td><strong>'+s.student_name+'</strong></td>'
-      +'<td><span class="tag">'+(s.gender||'--')+'</span></td>'
-      +'<td style="font-size:11px;color:'+(s.parent1_line_id?'var(--green)':'var(--gray400)')+'">'+(s.parent1_name||'--')+'</td>'
-      +'<td style="font-size:11px;color:'+(s.parent2_line_id?'var(--green)':'var(--gray400)')+'">'+(s.parent2_name||'--')+'</td>'
-      +'<td><button class="btn btn-sm btn-danger" onclick="toggleClubMember(\''+key+'\')" style="padding:3px 8px">移除</button></td>'
-    +'</tr>';
-  }).join('')||'<tr><td colspan="7" style="text-align:center;padding:16px;color:var(--gray400)">尚無成員</td></tr>';
-  document.getElementById('clubMemberTable').innerHTML=html;
-}
+
 
 // ══════════════════════════════════════════════════════
 //  學年度管理
